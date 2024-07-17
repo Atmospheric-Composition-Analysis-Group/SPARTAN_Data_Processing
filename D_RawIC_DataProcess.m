@@ -49,7 +49,7 @@ addpath('UtilityFunctions')
 
 %% Directories and User Switches
 
-Redo_All_Archieve = 0; % set to 1 if want to re-process all archived data
+Redo_All_Archieve = 1; % set to 1 if want to re-process all archived data
 Re_Collect_IC_areas = 0; % set to 1 if want to re-collect all area data. Note: only work when Redo_All_Archieve = 1
 
 % Setup directories 
@@ -1110,48 +1110,48 @@ else
 
     % *********** Haihui Zhu, Oct 2023 ************************************
     % For very low concentration (e.g. field blank), apply the low concentration calibration curves
-    ind = find(data_post<0.39 & data_post > -100);
-    if ~isempty(ind)
-        % NOTE: using interp1, instead of curve fitting, to estimate ion
-        % concentration
-        switch IonID
-            case 'Ca'
-                data_post(ind) = interp1(IC_low_cat.Ca.signal, IC_low_cat.Ca.conc, data_pre(ind));
-            case 'Na'
-                data_post(ind) = interp1(IC_low_cat.Na.signal, IC_low_cat.Na.conc, data_pre(ind));
-            case 'Mg'
-                data_post(ind) = interp1(IC_low_cat.Mg.signal, IC_low_cat.Mg.conc, data_pre(ind));
-            case 'K'
-                data_post(ind) = interp1(IC_low_cat.K.signal, IC_low_cat.K.conc, data_pre(ind));
-            case 'Li'
-                ind = find(data_post<0.09 & ~isnan(data_post)); % lithium detection limit is much lower than other ions.
-                if ~isempty(ind)
-                    data_post(ind) = interp1(IC_low_cat.Li.signal, IC_low_cat.Li.conc, data_pre(ind));
-                end
-            case 'Br'
-                data_post(ind) = interp1(IC_low_cat.Br.signal, IC_low_cat.Br.conc, data_pre(ind));
-            case 'Cl'
-                ind = find(data_post<0.05 & ~isnan(data_post)); % Cl detection limit is much lower than other ions.
-                if ~isempty(ind)
-                    data_post(ind) = interp1(IC_low_cat.Cl.signal, IC_low_cat.Cl.conc, data_pre(ind));
-                end
-            case 'F'
-                ind = find(data_post<0.05 & ~isnan(data_post)); % Cl detection limit is much lower than other ions.
-                if ~isempty(ind)
-                    data_post(ind) = interp1(IC_low_cat.F.signal, IC_low_cat.F.conc, data_pre(ind));
-                end
-            case 'NO2'
-                data_post(ind) = interp1(IC_low_cat.NO2.signal, IC_low_cat.NO2.conc, data_pre(ind));
-            case 'NO3'
-                data_post(ind) = interp1(IC_low_cat.NO3.signal, IC_low_cat.NO3.conc, data_pre(ind));
-            case 'PO4'
-                data_post(ind) = interp1(IC_low_cat.PO4.signal, IC_low_cat.PO4.conc, data_pre(ind));
-            case 'SO4'
-                data_post(ind) = interp1(IC_low_cat.SO4.signal, IC_low_cat.SO4.conc, data_pre(ind));
-                
-        end
+
+    % NOTE: using interp1, instead of curve fitting, to estimate ion
+    % concentration
+    switch IonID
+        case 'Ca'
+            data_post = check_for_low_conc(IC_low_cat.Ca, data_post, data_pre);
+        case 'Na'
+            data_post = check_for_low_conc(IC_low_cat.Na, data_post, data_pre);
+        case 'Mg'
+            data_post = check_for_low_conc(IC_low_cat.Mg, data_post, data_pre);
+        case 'K'
+            data_post = check_for_low_conc(IC_low_cat.K, data_post, data_pre);
+        case 'Li'
+            data_post = check_for_low_conc(IC_low_cat.Li, data_post, data_pre);
+        case 'Br'
+            data_post = check_for_low_conc(IC_low_cat.Br, data_post, data_pre);
+        case 'Cl'
+            data_post = check_for_low_conc(IC_low_cat.Cl, data_post, data_pre);
+        case 'F'
+            data_post = check_for_low_conc(IC_low_cat.F, data_post, data_pre);
+        case 'NO2'
+            data_post = check_for_low_conc(IC_low_cat.NO2, data_post, data_pre);
+        case 'NO3'
+            data_post = check_for_low_conc(IC_low_cat.NO3, data_post, data_pre);
+        case 'PO4'
+            data_post = check_for_low_conc(IC_low_cat.PO4, data_post, data_pre);
+        case 'SO4'
+            data_post = check_for_low_conc(IC_low_cat.SO4, data_post, data_pre);
+
     end
+
     % *********************************************************************
+end
+
+end
+
+function data_post = check_for_low_conc(curv, data_post, data_pre)
+% if the concentration is lower than 85% of the upper limit of the low_conc_curve, apply the low_conc_curve to get a more accurate conc.  
+ind = find(data_post< 0.85*curv.conc(end) & data_post > -100);
+
+if ~isempty(ind)
+    data_post(ind) = interp1(curv.signal, curv.conc, data_pre(ind));
 end
 
 end
