@@ -305,7 +305,7 @@ if isa(new_value,'double')
    if ~isnan(new_value) && tcolumn(idx_massfile) ~= new_value
        tcolumn(idx_massfile) = new_value;
        if replace_warning == 1
-            warning('%s %s old value %.2d replaced with %.2d\n',fileterID, var, tcolumn(idx_massfile), new_value)
+            warning('%s %s old value %.2d replaced with %.2d\n',fileterID{1}, var, tcolumn(idx_massfile), new_value)
        end
    end
     mass_file_table(:, ismember(titles,var)) = table(tcolumn);
