@@ -49,7 +49,7 @@ addpath('UtilityFunctions')
 
 %% Directories and User Switches
 
-Redo_All_Archieve = 1; % set to 1 if want to re-process all archived data
+Redo_All_Archieve = 0; % set to 1 if want to re-process all archived data
 Re_Collect_IC_areas = 0; % set to 1 if want to re-collect all area data. Note: only work when Redo_All_Archieve = 1
 
 % Setup directories 
