@@ -1269,8 +1269,7 @@ BadNa = table2array(readtable(BadNa,opts));
     end
 
     %% Figure 5: RCFM Pie chart for 2019 and forward
-    year = 2020;
-    ind = find(PM25_dates(:,5) >= year);
+    ind = find(PM25_dates(:,5) >= 2020);
 
     PM25_total = mean(PM25_data_public(ind,1),'omitnan');
 
@@ -1305,50 +1304,53 @@ BadNa = table2array(readtable(BadNa,opts));
     if additional_pie == 1
 
     infname =  sprintf('%s/Public_Data/Chemical_Filter_Data/Plots/Pie_spec_plots/ByCartridge/Cartridges_need_pie_charts.xlsx',direc);
-    cartlist = readtable(infname,'Sheet','PRFJ');
-    cartlist = table2array(cartlist);
-    ind = find(ismember(PM25_cartridgeIDs,cartlist));
+    sheets = sheetnames(infname);
+    if sum(contains(sheets,Site_codes{loc}))>0 % there is a sheet for this site
+        cartlist = readtable(infname,'Sheet',Site_codes{loc});
+        cartlist = table2array(cartlist);
+        ind = find(ismember(PM25_cartridgeIDs,cartlist));
 
-    if ~isempty(ind)
-        PM25_total = mean(PM25_data_public(ind,1),'omitnan');
-        Cl =  mean(PM25_IC(ind,contains(IC_title,'IC_Cl')),'omitnan');
-        K =  mean(PM25_IC(ind,contains(IC_title,'IC_K')),'omitnan');
-        N = length(ind); % number of filters included
+        if ~isempty(ind)
+            PM25_total = mean(PM25_data_public(ind,1),'omitnan');
+            Cl =  mean(PM25_IC(ind,contains(IC_title,'IC_Cl')),'omitnan');
+            K =  mean(PM25_IC(ind,contains(IC_title,'IC_K')),'omitnan');
+            N = length(ind); % number of filters included
 
-        Pie_made = PM25_RCFMavg_pie(PM25_total, species_plot(ind,:) , Site_cities,loc); % function for making pie chart
-        if Pie_made == 1
-            % add note of filter number
-            notes = sprintf('Num of Filters = %d',N);
-            text(-0.3, -0.05, notes,'units','normalized')
+            Pie_made = PM25_RCFMavg_pie(PM25_total, species_plot(ind,:) , Site_cities,loc); % function for making pie chart
+            if Pie_made == 1
+                % add note of filter number
+                notes = sprintf('Num of Filters = %d',N);
+                text(-0.3, -0.05, notes,'units','normalized')
 
-            fname = sprintf('%s/Public_Data/Chemical_Filter_Data/Plots/Pie_spec_plots/ByCartridge/%s_PM25_RCFMavg',direc,Site_codes{loc});
-            saveas(gcf,sprintf('%s.png',fname))
-            print(sprintf('%s.eps',fname),'-depsc')
-            close all
-        end
+                fname = sprintf('%s/Public_Data/Chemical_Filter_Data/Plots/Pie_spec_plots/ByCartridge/%s_PM25_RCFMavg',direc,Site_codes{loc});
+                saveas(gcf,sprintf('%s.png',fname))
+                print(sprintf('%s.eps',fname),'-depsc')
+                close all
+            end
 
-        % making another pie chart that includes Cl
-        Pie_made = PM25_RCFMavg_pie_with_Cl(PM25_total, species_plot(ind,:) , Cl,K, Site_cities,loc); % function for making pie chart
-        if Pie_made == 1
-            % add note of filter number
-            notes = sprintf('Num of Filters = %d',N);
-            text(-0.1, -0.05, notes,'units','normalized')
-            saveas(gcf,sprintf('%s_with_Cl.png',fname))
-            print(sprintf('%s_with_Cl.eps',fname),'-depsc')
-            close all
+            % making another pie chart that includes Cl
+            Pie_made = PM25_RCFMavg_pie_with_Cl(PM25_total, species_plot(ind,:) , Cl,K, Site_cities,loc); % function for making pie chart
+            if Pie_made == 1
+                % add note of filter number
+                notes = sprintf('Num of Filters = %d',N);
+                text(-0.1, -0.05, notes,'units','normalized')
+                saveas(gcf,sprintf('%s_with_Cl.png',fname))
+                print(sprintf('%s_with_Cl.eps',fname),'-depsc')
+                close all
 
 
-            % save data to a xlsx
-            PM25 = PM25_data_public(ind,1);
-            SO4 = PM25_data_public(ind,2);
-            NH4 = PM25_data_public(ind,4);
-            NO3 = PM25_data_public(ind,3);
-            Na = PM25_data_public(ind,6);
-            Cl =  PM25_IC(ind,contains(IC_title,'IC_Cl'));
-            savedata_dry(PM25_labels(ind,:), PM25, BC(ind,:), TEO(ind,:), Soil(ind,:), Na, NO3, NH4, SO4, PBW(ind,:), OC_dry(ind,:), RM_dry(ind,:),Cl,fname)
-            savedata_wet(PM25_labels(ind,:), PM25, BC(ind,:), TEO(ind,:), Soil(ind,:), ANO3_wet(ind,:), ASO4_wet(ind,:), NaSO4_wet(ind,:), OC_wet(ind,:), RM_wet(ind,:),SSalt_wet(ind,:),fname)
-            clear  PM25 SO4 NO3 NH4 Na Cl
+                % save data to a xlsx
+                PM25 = PM25_data_public(ind,1);
+                SO4 = PM25_data_public(ind,2);
+                NH4 = PM25_data_public(ind,4);
+                NO3 = PM25_data_public(ind,3);
+                Na = PM25_data_public(ind,6);
+                Cl =  PM25_IC(ind,contains(IC_title,'IC_Cl'));
+                savedata_dry(PM25_labels(ind,:), PM25, BC(ind,:), TEO(ind,:), Soil(ind,:), Na, NO3, NH4, SO4, PBW(ind,:), OC_dry(ind,:), RM_dry(ind,:),Cl,fname)
+                savedata_wet(PM25_labels(ind,:), PM25, BC(ind,:), TEO(ind,:), Soil(ind,:), ANO3_wet(ind,:), ASO4_wet(ind,:), NaSO4_wet(ind,:), OC_wet(ind,:), RM_wet(ind,:),SSalt_wet(ind,:),fname)
+                clear  PM25 SO4 NO3 NH4 Na Cl
 
+            end
         end
     end
 
