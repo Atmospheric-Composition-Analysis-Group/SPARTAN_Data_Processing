@@ -8,8 +8,8 @@
 % 4. Uses flags from IC and the 'Bad_sodium' list to remove invalid IC measurements
 % 5. Check sum of measured species vs. mass collected and mark filter as invalid if sum of species is greater than collected mass
 % 6. Reconstruct fine mass using measured constituents
-% 5. Determine filter-specific kappa values based on measured constituents
-% 6. Generate data products for research and posting on SPARTAN website.
+% 7. Determine filter-specific kappa values based on measured constituents
+% 8. Generate data products for research and posting on SPARTAN website.
 %    Data products generated include:
 %     - all measured components (dry, 0% RH), with any necessary corrections applied for PM2.5, PM10, and when applicable, PMcoarse
 %     - reconstructed fine mass with residual matter and PBW at 35 %RH
@@ -135,6 +135,9 @@ tSiteDataNum = nan(length(Site_codes),length(DataNum_tab_rows)-1);
 MDLfname = sprintf('%s/Analysis_Data/XRF/MDL_Unc_Ref.mat',direc);
 load(MDLfname,'Ref_Dates','Ref_Values','FilterGroup')
 
+% ---- Load MAL and CF for dust estimation
+MAL_all = site_details.MAL;
+CF_all = site_details.CF;
 
 % ---- Load the list of bad sodium cartridges ----
 BadNa = sprintf('%s/Analysis_Data/Ion_Chromatography/Bad_sodium_data_in_2017.xlsx',direc);
@@ -161,7 +164,7 @@ BadNa = table2array(readtable(BadNa,opts));
 %% Read master files and process public files %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  for loc =  1:numel(Site_codes)
     
-    % Read Master Files
+    %% Read Master Files
     master_file = sprintf('%s/%s_master.csv',direc_master,Site_codes{loc});
     [Titles,Master_IDs,   Master_Barcodes, Master_CartridgeIDs, Master_LotIDs, Master_projectIDs,  Master_hours,  Master_masstype, ...
             Master_dates, Master_mass,     Master_IC,           Master_ICP,    Master_XRF,...
@@ -982,17 +985,10 @@ BadNa = table2array(readtable(BadNa,opts));
     xrf_soil_factors = [1.89 2.14 1.40 1.36 1.67];
     Soil = nan(size(PM25_data_public,1),1);
 
-    % Regional varying MAL and CF values:
-    MAL_CF={'AEAZ'	'AUMN'	'ARCB'	'BDDU'	'BIBU'	'CADO'	'CAHA'	'CAKE'	'CALE'	'CASH'	'CHTS'	'CLST'	'CODC'	'ETAD'	'IDBD'	'ILHA'	'ILNZ'	'INDH'	'INKA'	'KRSE'	'KRUL'	'MXMC'	'NGIL'	'PHMO'	'PRFJ'	'SGSU'	'TWKA'	'TWTA'	'USBA'	'USBO'	'USMC'	'USNO'	'USPA'	'VNHN'	'ZAJB'	'ZAPR';
-            0.72 	0.24 	0.62 	0.62 	0.62 	0.62 	0.62 	0.62 	0.62 	0.62 	0.59 	0.62 	0.27 	0.62 	0.62 	0.72 	0.72 	0.62 	0.62 	0.59 	0.59 	0.27 	0.27 	0.62 	0.27 	0.62 	0.62 	0.62 	0.27 	0.27 	0.27 	0.27	0.66 	0.62 	0.62 	0.62 ;
-            1.14 	1.05 	1.02 	1.02 	1.02 	1.02 	1.02 	1.02 	1.02 	1.02 	1.11 	1.02 	1.05 	1.02 	1.02 	1.14 	1.14 	1.02 	1.02 	1.11 	1.11 	1.05 	1.05 	1.02 	1.05 	1.02 	1.02 	1.02 	1.05 	1.05 	1.05 	1.05 	1.14 	1.02 	1.02 	1.02 };
-    
-    Ind = find(ismember(MAL_CF(1,:),Site_codes{loc}));
-    if ~isempty(Ind)
-        MAL = cell2mat(MAL_CF(2,Ind)); 
-        CF = cell2mat(MAL_CF(3,Ind));
-    else
-        error('MAL and CF not found for %s',Site_codes{loc})
+    MAL = MAL_all(loc,1);
+    CF =  CF_all(loc,1);
+    if isempty(MAL)
+        error('MAL and CF not found for %s in Site_Details.xlsx',Site_codes{loc})
     end
 
     % TEO ratios if ICP-MS = (1.47[V] + 1.27[Ni] + 1.25[Cu] + 1.24[Zn] + 1.32[As] + 1.2[Se] + 1.07[Ag] + 1.14[Cd] + 1.2[Sb] + 1.12[Ba] + 1.23[Ce] + 1.08[Pb]);
