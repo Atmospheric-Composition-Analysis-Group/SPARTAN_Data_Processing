@@ -1,0 +1,9 @@
+*.asv
+*.png
+*.txt
+.*.m
+._*
+*.mat
+Miscellaneous/*DS_Store
+IC_zero.xlsx
+Miscellaneous/dust_with_AF_internal_Si_Al_only.m
