@@ -1226,7 +1226,7 @@ BadNa = table2array(readtable(BadNa,opts));
     %% Figure 1: Time series of cartridge average and site average PM2.5 for website
     PM25filter_timeseries(PM25_Mass(:,1), PM25_dates, Site_cities, Site_codes, direc_output,loc)
 
-    species_plot = [PBW PM25_data_public(:,[2 4 3 6])  Soil TEO BC OC_dry RM_dry]; % order: {'SO4','NH4','NO3','SS','Dust','TEO','BC','OC','RM'};
+    species_plot = [PBW PM25_data_public(:,[2 4 3 6])  Soil TEO BC OC_dry RM_dry]; % order: {'water' 'SO4','NH4','NO3','SS','Dust','TEO','BC','OC','RM'};
     
     % calculate reportable data for later use
     tSiteDataNum(loc,1) = sum(~isnan(PM25_data_public(:,1)));
@@ -1370,7 +1370,7 @@ writetable(BC_table,sprintf('%s/Analysis_Data/Black_Carbon/BC_availability.xlsx'
 
 %  print out reportable data num 
 T = table(Site_cities, tSiteDataNum(:,1),tSiteDataNum(:,2),tSiteDataNum(:,3),tSiteDataNum(:,4),tSiteDataNum(:,5),...
-                       tSiteDataNum(:,6),tSiteDataNum(:,7),tSiteDataNum(:,8),tSiteDataNum(:,9),tSiteDataNum(:,10),'VariableNames',DataNum_tab_rows);
+                       tSiteDataNum(:,6),tSiteDataNum(:,7),tSiteDataNum(:,8),tSiteDataNum(:,9),tSiteDataNum(:,10),tSiteDataNum(:,11),'VariableNames',DataNum_tab_rows);
 writetable(T,sprintf('%s/Analysis_Data/Reportable_Data_Count_New.xlsx',direc));
 
 
