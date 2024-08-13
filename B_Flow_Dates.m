@@ -47,11 +47,11 @@ Clean_Up_Master = 0; % set to 1 if want to reprocess all dates and volumes
 debug_mode = 0;
 direc = find_root_dir(debug_mode);
 
-direc_sampling = strcat(direc,'Site_Sampling');
-direc_master = strcat(direc,'Analysis_Data/Master_files');
+direc_sampling = strcat(direc,'/Site_Sampling');
+direc_master = strcat(direc,'/Analysis_Data/Master_files');
 
 % The diary function saves the processing history into an annual record
-diary(sprintf('%sPublic_Data/Data_Processing_Records/Flow_Processing/%s_Flow_Processing_Record.txt',direc,datestr(now,'yyyy-mm-dd-HHMMSS')))
+diary(sprintf('%s/Public_Data/Data_Processing_Records/Flow_Processing/%s_Flow_Processing_Record.txt',direc,datestr(now,'yyyy-mm-dd-HHMMSS')))
 fprintf('%s \n', datestr(now))
 
 %-------------   SITE INFO   --------------
@@ -124,7 +124,7 @@ for loc = 1:length(Site_codes)
         Master_dates     = NaN.*Master_dates;
         Master_mass(:,2) = NaN; % set only volume to NaN, keep mass.
         Master_hours     = NaN.* Master_hours;
-        Master_masstype  = NaN.*Master_masstype;
+        Master_masstype(Master_masstype~=5)  = nan;
         Master_Method    = NaN.*Master_Method;
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% [Haihui, 2023, 1, 26 ]
@@ -256,6 +256,9 @@ for loc = 1:length(Site_codes)
 
             % Skip neg masses and nuclepore filters
             elseif mass_type == 5 || mass_type == 3
+
+            elseif isnan(tflow_volume) % adding a check: if volume is nan, ignore flow rates and assign mass type as invalid. [Haihui, Aug-2024] 
+                 mass_type = 6;
                 
             else
                 % CHECK: External Start Flow within 10% of Target Flow Rate
