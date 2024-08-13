@@ -111,7 +111,7 @@ for loc =  1:length(Site_codes)
             % those before proceeding
             removeind = find(Neph_dataC(:,1)>2100);
             if ~isempty(removeind)
-                fprintf('Removing strange date (e.g. year = %d) in %s\n', Neph_dataC(removeind(1),1), files(i))
+                fprintf('Removing strange date (e.g. year = %d) in %s\n', Neph_dataC(removeind(1),1), files{i})
                 Neph_dataC(removeind) = [];
             end
 
