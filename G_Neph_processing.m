@@ -160,14 +160,10 @@ for loc =  1:length(Site_codes)
         filename = sprintf('%s/%s', raw_dir, files{Neph});
         % This section gets info for what type (e.g IN model, CR system) of file is being read.
         % could be blended to the neph_file_read2 function (Haihui)
-        opts = detectImportOptions(filename);
-        opts.VariableNamesLine = 1;
-        opts.VariableNamingRule = 'preserve';
-        rawtable = readtable(filename, opts);
-        headers = rawtable.Properties.VariableNames;
+        [headers, ~] = read_neph_headers(filename);
+
         model_test = find(contains(headers, 'flow','IgnoreCase',true));
         CR_test = find(contains(headers, 'RF_CR'));
-        clear opts
 
         FileTracker = readtable(TrackerFileName, 'Sheet', 'List', Range = "A1:S2");
         FileTracker.FileName = files{Neph};
@@ -317,12 +313,15 @@ for loc =  1:length(Site_codes)
         data(isinf(data)) = NaN;
 
         % Nan out negative RH
-        % RH as low as -30 were spotted at the Melbourne site. Below are response from Chris:  
+        % RH as low as -30 were found at the Melbourne site. See Chris' comment below:  
         % -30 likely means that power to the RH probe or signal from the RH probe was lost. 
         % Other aspects of the nephelometer probably still operated.
         % Those -30 values are likely better expressed as NaN.
         rh_col = find(ismember(data_title,'RH'));
         data(data(:,rh_col)<0,rh_col) = nan;
+
+        % NAN out data when RH > 100 (As there is a RH max)
+        data(data(:,rh_col)>100,:) = [];
 
 
         %% %%%%% Step3: writing to output csv files %%%%%%%%%%%%%%%%%%%%%%%%%%%
