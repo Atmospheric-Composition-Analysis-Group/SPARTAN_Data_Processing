@@ -7,6 +7,8 @@
 % ridge and the comma-delimited text file should be saved as a '.xlsx' file. 
 % The full filterID (i.e.'CAHA-0105-3') should be used in the MTL system.
 
+% Other requiremenes: Filters should be found in Acceptance_Testing_Summary_WashU.xlsx
+
 % To rerun a raw MTL file: 
 % Simply move the raw file to direc_new
 % If you do not want to see warnings about replacing existing weights to 
@@ -233,7 +235,7 @@ for data_file = 1:length(files)
             % add the new rows to the original table:
             mass_file_table(height(mass_file_table)+1 : height(mass_file_table)+height(newtable),:) = newtable;
             
-        % elseif OutputType == 3 % New info in mass_file_table already. Nothing need to be done.             
+        % elseif OutputType == 3 % New info in mass_file_table already, go to the next step - write to masses csv.             
         end
 
 
