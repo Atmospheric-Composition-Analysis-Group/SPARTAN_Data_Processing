@@ -20,7 +20,7 @@ direc_sampling = strcat(direc,'/Site_Sampling');
 direc_archive = strcat(direc,'/Analysis_Data/Archived_Filter_Data/HIPS/');
 
 % The diary function saves the processing history into an annual record
-diary(sprintf('%s/Public_Data/Data_Processing_Records/HIPS_BC/%s_HIPS_BC_Record.txt',direc,datestr(now,'yyyy-mm-dd-HHMMSS')))
+diary(sprintf('%s/Public_Data/Data_Processing_Records/BC_HIPS/%s_HIPS_BC_Record.txt',direc,datestr(now,'yyyy-mm-dd-HHMMSS')))
 fprintf('%s \n', datestr(now))
 
 %-------------   SITE DETAILS   --------------
@@ -130,14 +130,23 @@ for ff = 1:length(allfname)
         ind = find(contains(FilterID,{'LB','FB'},'IgnoreCase',true)==1);
     end 
 
-    for ii = 1:length(ind)
-        FilterID{ind(ii)} = '';
-        tau(ind(ii)) = NaN;
-        depArea(ind(ii)) = NaN;
-        if ~isempty(comments)
-           comments{ind(ii)} = '';
+    FilterID2 = FilterID; clear FilterID
+    if ~isempty(comments)
+        comments2 = comments; clear comments
+    end
+    n = 0;
+    for ii = 1:length(FilterID2)
+        if ~ismember(ii,ind)
+            n = n+1;
+            FilterID{n} = FilterID2{ii};
+            if ~isempty(comments2)
+                comments{n} = comments2{ii};
+            end
         end
     end
+    tau(ind) = [];
+    depArea(ind) = [];
+
 
     % format filter ID
     label_length_new = 11; % i.e. 'AEAZ-0010-1'
@@ -169,6 +178,7 @@ for ff = 1:length(allfname)
 %% ---------- Write HIPS BC to the master files -------------------------
 format_filter_char = char(format_filter);
 site_IDs = unique(format_filter_char(:,1:4),'rows'); clear format_filter_char
+
 
 for loc = 1:size(site_IDs,1)
     if ~isempty(deblank(site_IDs(loc,:)))
@@ -260,7 +270,7 @@ for loc = 1:size(site_IDs,1)
                             tflag = AddFlag(tflag,'SUS');
                         end
 
-                        if  isempty(tflag) && ~isempty(tcomment) && bcmass(siteidx(ii))>0
+                        if  isempty(tflag) && ~isempty(tcomment) && bcmass(siteidx(ii))>0 && ~ismember(tcomment,{'NA'})
                             fprintf('%s comment not added to flags: %s\n',format_filter{siteidx(ii)},tcomment)
                         end
                     end
@@ -281,16 +291,16 @@ for loc = 1:size(site_IDs,1)
 
         % copy/move file to the corresponding archive
         file_destination = strcat(direc_archive,sprintf('%s/',site_IDs(loc,:)));
-        [status(loc),~,~]= copyfile(tfile, file_destination );
+        status(loc)= CopyFile(tfile, file_destination ); % 1 = successful; 0 = error
         clear file_destination
 
 
     end
 end
-if sum(status == 0) == 0
+if sum(status == 0) == 0 % no error
     delete(tfile)
 else
-    Warning ('File moving not successful. Not deleted: %s\n',tfile)
+    warning ('File moving not successful. Not deleted: %s\n',tfile)
 end
 clear format_filter_char format_filter comments FilterID tau depArea FilterType
 
