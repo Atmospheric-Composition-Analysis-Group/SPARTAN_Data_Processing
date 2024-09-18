@@ -44,6 +44,7 @@ if __name__ == "__main__":
     # Load OpenAQ recieved data
     localtimerecord = f"{direc}/Public_Data/Scripts/UtilityFunctions/Received_by_OpenAQ_localtime.csv"
     if os.path.exists(localtimerecord):
+        shutil.copy(localtimerecord, f"{direc}/Public_Data/Scripts/UtilityFunctions/Received_by_OpenAQ_localtime_archive.csv")  # make a copy just in case need to repeat
         openaq_rec = pd.read_csv(localtimerecord, parse_dates=['datetime_first','datetime_last']) 
 
     else:

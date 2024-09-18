@@ -9,7 +9,9 @@ function files = getFiles(directory)
     files2 = files2';
 
     if ~isempty(files2)
-        files{end+1:end+length(files2)} = files2{1:end};
+        for ff = 1:length(files2)
+            files{end+1} = files2{ff};
+        end
     end
 
 end

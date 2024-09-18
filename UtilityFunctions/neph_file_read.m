@@ -190,11 +190,7 @@ end
 function [alldata, crdata] = ReadWithTitile(filename, data_title, cr_title, IN_model, CR_system)
 
 % reading the csv file for the first time
-opts = detectImportOptions(filename);
-opts.VariableNamesLine = 1; % sometimes readtable fails to find read the variable names, likely because of specieal sympols (# etc)
-opts.VariableNamingRule = 'preserve'; 
-A = readtable(filename, opts);
-headers = A.Properties.VariableNames;
+[headers, opts] = read_neph_headers(filename);
 
 % make sure that most data types are read as double 
 vartypes = opts.VariableTypes;
