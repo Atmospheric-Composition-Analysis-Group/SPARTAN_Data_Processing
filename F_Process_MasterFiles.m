@@ -163,7 +163,7 @@ BadNa = table2array(readtable(BadNa,opts));
 
 %% Read master files and process public files %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  for loc =  1:numel(Site_codes)
-    
+%  for loc =  find(ismember(Site_codes,'CHTS'))
     %% Read Master Files
     master_file = sprintf('%s/%s_master.csv',direc_master,Site_codes{loc});
     [Titles,Master_IDs,   Master_Barcodes, Master_CartridgeIDs, Master_LotIDs, Master_projectIDs,  Master_hours,  Master_masstype, ...
@@ -1260,7 +1260,8 @@ BadNa = table2array(readtable(BadNa,opts));
         NO3 = PM25_data_public(:,3);
         Na = PM25_data_public(:,6);
         Cl =  PM25_IC(:,contains(IC_title,'IC_Cl'));
-        savedata_dry(PM25_labels, PM25, BC, TEO, Soil, Na, NO3, NH4, SO4, PBW, OC_dry, RM_dry, Cl,fname)
+        K  =  PM25_IC(:,contains(IC_title,'IC_K'));
+        savedata_dry(PM25_labels, PM25, BC, TEO, Soil, Na, NO3, NH4, SO4, PBW, OC_dry, RM_dry, Cl,K, fname)
         clear PM25 SO4 NH4 NO3 Na Cl
     end
 
@@ -1289,7 +1290,8 @@ BadNa = table2array(readtable(BadNa,opts));
         NO3 = PM25_data_public(ind,3);
         Na = PM25_data_public(ind,6);
         Cl =  PM25_IC(ind,contains(IC_title,'IC_Cl'));
-        savedata_dry(PM25_labels(ind,:), PM25, BC(ind,:), TEO(ind,:), Soil(ind,:), Na, NO3, NH4, SO4, PBW(ind,:), OC_dry(ind,:), RM_dry(ind,:),Cl,fname)
+        K  =  PM25_IC(ind,contains(IC_title,'IC_K'));
+        savedata_dry(PM25_labels(ind,:), PM25, BC(ind,:), TEO(ind,:), Soil(ind,:), Na, NO3, NH4, SO4, PBW(ind,:), OC_dry(ind,:), RM_dry(ind,:),Cl,K,fname)
         clear PM25 SO4 NH4 NO3 Na Cl
     end
 
@@ -1342,7 +1344,8 @@ BadNa = table2array(readtable(BadNa,opts));
                 NO3 = PM25_data_public(ind,3);
                 Na = PM25_data_public(ind,6);
                 Cl =  PM25_IC(ind,contains(IC_title,'IC_Cl'));
-                savedata_dry(PM25_labels(ind,:), PM25, BC(ind,:), TEO(ind,:), Soil(ind,:), Na, NO3, NH4, SO4, PBW(ind,:), OC_dry(ind,:), RM_dry(ind,:),Cl,fname)
+                K  =  PM25_IC(ind,contains(IC_title,'IC_K'));
+                savedata_dry(PM25_labels(ind,:), PM25, BC(ind,:), TEO(ind,:), Soil(ind,:), Na, NO3, NH4, SO4, PBW(ind,:), OC_dry(ind,:), RM_dry(ind,:),Cl,K,fname)
                 savedata_wet(PM25_labels(ind,:), PM25, BC(ind,:), TEO(ind,:), Soil(ind,:), ANO3_wet(ind,:), ASO4_wet(ind,:), NaSO4_wet(ind,:), OC_wet(ind,:), RM_wet(ind,:),SSalt_wet(ind,:),fname)
                 clear  PM25 SO4 NO3 NH4 Na Cl
 
@@ -1385,8 +1388,8 @@ function savedata_wet(PM25_labels, PM25, BC, TEO, Soil, ANO3_wet, ASO4_wet, NaSO
         writetable(T,tablename,'Sheet','wet')
 end
 
-function savedata_dry(PM25_labels, PM25, BC, TEO, Soil, Na, NO3, NH4, SO4, PBW, OC_dry, RM_dry,Cl,fname) 
-        T = table(PM25_labels, PM25, BC, TEO, Soil, Na, NO3, NH4, SO4, PBW,Cl,OC_dry, RM_dry);
+function savedata_dry(PM25_labels, PM25, BC, TEO, Soil, Na, NO3, NH4, SO4, PBW, OC_dry, RM_dry,Cl,K,fname) 
+        T = table(PM25_labels, PM25, BC, TEO, Soil, Na, NO3, NH4, SO4, PBW,Cl, K, OC_dry, RM_dry);
         tablename = sprintf('%s.xlsx',fname);
         delete(tablename) % delete existing file 
         writetable(T,tablename,'Sheet','dry')
