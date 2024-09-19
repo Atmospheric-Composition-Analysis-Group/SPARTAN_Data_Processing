@@ -43,13 +43,19 @@ if sum(isnan(species)) == 0
     SpecName = SpecName([8 7 6 5 11 12 4 3 2 1 9 10]);
     Colors = Colors([8 7 6 5 11 12 4 3 2 1 9 10],:); % change the order
 
-    % 2022-05-15 Haihui: replace negative species (usually OM) by 0
+    % 2022-05-15 Haihui: replace negative species (usually OM) with 0
     notes ='';
     Ind = find(species<0);
     for i = 1:length(Ind) % prepare note in the chart
         notes = sprintf('%s\n%s = %.2f and is set to 0 in the chart.',notes,SpecName{Ind(i)},species(Ind(i)));
     end
     species(Ind)=0; % set negative to 0;
+    % 20224-09-19 Haihui: replace nan with 0
+    Ind = find(isnan(species)==1);
+    for i = 1:length(Ind) % prepare note in the chart
+        notes = sprintf('%s\n%s is nan and is set to 0 in the chart.', notes, SpecName{Ind(i)});
+    end
+    species(Ind) = 0; % set negative to 0;
 
     % Colors =
     % {'#A2142F','#0072BD','#D95319','k','#77AC30','#EDB120','#4DBEEE',''}; % AMS colors
