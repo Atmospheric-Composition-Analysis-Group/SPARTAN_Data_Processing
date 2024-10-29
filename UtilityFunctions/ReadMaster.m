@@ -1,12 +1,12 @@
 function [Titles,Master_IDs, Master_Barcodes, Master_CartridgeIDs, Master_LotIDs, Master_ProjectIDs,Master_hours, Master_masstype, ...
           Master_dates, Master_mass, Master_IC, Master_ICP, Master_XRF,...
-          Master_carbon, Master_Method, Master_flags] = ReadMaster(master_file,site_ID)
+          Master_carbon, Master_Nylon,Master_Method, Master_flags] = ReadMaster(master_file,site_ID)
 
 % This function read the master file when provided the filename (with 
 % absolute path) and the Site ID. Site IS is just for error message. 
 
 % Outputs:
-% Titles = 83 x 1 cell 
+% Titles = 96 x 1 cell 
 % Master_IDs = N x 1 cell   
 % Master_Barcodes = N x 1 cell
 % Master_CartridgeIDs = N x 1 cell
@@ -20,6 +20,7 @@ function [Titles,Master_IDs, Master_Barcodes, Master_CartridgeIDs, Master_LotIDs
 % Master_ICP = N x 21 mat
 % Master_XRF = N x 26 mat
 % Master_carbon = N x 4 mat; 'BC_SSR_ug', 'BC_HIPS_ug','EC_FTIR_ug','OC_FTIR_ug'
+% Master_Nylon = N x 13 mat
 % Master_Method = N x 1 mat
 % Master_flags = N x 1 cell
 
@@ -29,9 +30,9 @@ function [Titles,Master_IDs, Master_Barcodes, Master_CartridgeIDs, Master_LotIDs
 Titles = {'FilterID','Filter_Barcode','CartridgeID','LotID','projectID','hours_sampled','Mass_type',... % 7 cols
     'start_year','start_month','start_day','start_hour','stop_year','stop_month','stop_day','stop_hour',... % 8 cols
     'mass_ug','Volume_m3',... % 2 cols
-    'IC_F_ug','IC_Cl_ug','IC_NO2_ug','IC_Br_ug','IC_NO3_ug','IC_PO4_ug',...
-    'IC_SO4_ug','IC_Li_ug','IC_Na_ug','IC_NH4_ug','IC_K_ug','IC_Mg_ug',...
-    'IC_Ca_ug',... % IC = 13 cols
+    'IC_F_ug_T','IC_Cl_ug_T','IC_NO2_ug_T','IC_Br_ug_T','IC_NO3_ug_T','IC_PO4_ug_T',...
+    'IC_SO4_ug_T','IC_Li_ug_T','IC_Na_ug_T','IC_NH4_ug_T','IC_K_ug_T','IC_Mg_ug_T',...
+    'IC_Ca_ug_T',... % IC = 13 cols
     'Li_ICP_ng','Mg_ICP_ng','Al_ICP_ng','P_ICP_ng','Ti_ICP_ng',...
     'V_ICP_ng','Cr_ICP_ng','Mn_ICP_ng','Fe_ICP_ng','Co_ICP_ng',...
     'Ni_ICP_ng','Cu_ICP_ng','Zn_ICP_ng','As_ICP_ng','Se_ICP_ng',...
@@ -42,7 +43,11 @@ Titles = {'FilterID','Filter_Barcode','CartridgeID','LotID','projectID','hours_s
     'Ce_XRF_ng','Pb_XRF_ng','As_XRF_ng','Co_XRF_ng','Cr_XRF_ng',...
     'Cu_XRF_ng','Mg_XRF_ng','Mn_XRF_ng','Ni_XRF_ng','Sb_XRF_ng',...
     'Rb_XRF_ng','Sr_XRF_ng','Cd_XRF_ng','Se_XRF_ng','Sn_XRF_ng',... % 26 cols
-    'BC_SSR_ug','BC_HIPS_ug','EC_FTIR_ug','OC_FTIR_ug','method_index','Flags'}; % 6 cols
+    'BC_SSR_ug','BC_HIPS_ug','EC_FTIR_ug','OC_FTIR_ug',... % carbon 4 cols
+    'IC_F_ug_N','IC_Cl_ug_N','IC_NO2_ug_N','IC_Br_ug_N','IC_NO3_ug_N','IC_PO4_ug_N',...
+    'IC_SO4_ug_N','IC_Li_ug_N','IC_Na_ug_N','IC_NH4_ug_N','IC_K_ug_N','IC_Mg_ug_N',...
+    'IC_Ca_ug_N',... % IC_Nylon = 13 cols
+    'method_index','Flags'}; % 2 cols
 
 if exist(master_file,'file')
     fprintf('Master file found for %s \n', site_ID)
@@ -110,7 +115,8 @@ if exist(master_file,'file')
     Master_IC  = table2array(Master_data_initial(:,contains(Orig_title,'IC_')));
     Master_ICP = table2array(Master_data_initial(:,contains(Orig_title,'ICP')));
     Master_XRF = table2array(Master_data_initial(:,contains(Orig_title,'XRF'))); 
-    Master_carbon = table2array(Master_data_initial(:,end-5:end-2));
+    Master_carbon = table2array(Master_data_initial(:,contains(Orig_title,{'BC_SSR_ug','BC_HIPS_ug','EC_FTIR_ug','OC_FTIR_ug'})));
+    Master_Nylon = table2array(Master_data_initial(:,endsWith(Orig_title,'_N')));
     Master_Method = table2array(Master_data_initial(:,contains(Orig_title,'method_index')));
     Master_flags = table2array(Master_data_initial(:,end));
     
@@ -127,12 +133,23 @@ if exist(master_file,'file')
         
     end
     
-    % adding new Na_XRF if wasn't in Orig_title
+    % adding new Na_XRF if not in Orig_title
     if  numel(Orig_title) == 82 && size(Master_XRF,2) == 25
         Master_XRF(:,2:end+1) = Master_XRF;
         Master_XRF(:,1) = NaN; % adding col for Na_XRF
     end
-    
+
+    % add nylon columns if not in Orig_title
+    if  numel(Orig_title) == 83 && size(Master_Nylon,2) == 0
+        Master_Nylon = nan.*Master_IC;
+
+    elseif numel(Orig_title) == 96 && size(Master_IC,2) == 26
+        Master_IC  = table2array(Master_data_initial( :, contains(Orig_title,'IC_') & endsWith(Orig_title,'_T') ));
+
+    end
+
+
+
     else
 
     fprintf('WARNING: Master file for %s has no content\n\n', site_ID)
@@ -149,6 +166,7 @@ if exist(master_file,'file')
     Master_ICP = NaN.*zeros(0,21);
     Master_XRF = NaN.*zeros(0,26);
     Master_carbon = NaN.*zeros(0,4);
+    Master_Nylon  = NaN.*zeros(0,13);
     Master_Method = NaN.*zeros(0,1);
     Master_flags = cell(0, 1);
         
@@ -169,6 +187,7 @@ else
     Master_ICP = NaN.*zeros(0,21);
     Master_XRF = NaN.*zeros(0,26);
     Master_carbon = NaN.*zeros(0,4);
+    Master_Nylon  = NaN.*zeros(0,13);
     Master_Method = NaN.*zeros(0,1);
     Master_flags = cell(0, 1);
 

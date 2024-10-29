@@ -186,7 +186,7 @@ for loc = 1:size(site_IDs,1)
         master_file = sprintf('%s/%s_master.csv',direc_master,site_IDs(loc,:));
         [Titles,Master_IDs, Master_Barcodes, CartridgeIDs_master, LotIDs_master, projectIDs_master,...
             Master_hours, Mass_type, Master_dates, Master_mass,Master_IC, Master_ICP, Master_XRF,...
-            Master_carbon, Master_Method, Master_flags] = ReadMaster ( master_file, site_IDs(loc,:) );
+            Master_carbon, Mater_Nylon, Master_Method, Master_flags] = ReadMaster (master_file, site_IDs(loc, :));
 
         if ~isempty(Master_IDs)
             Master_HIPS = Master_carbon(:,2);
@@ -282,7 +282,7 @@ for loc = 1:size(site_IDs,1)
             Master_carbon(:,2) = Master_HIPS;
             WriteToMaster(Titles,Master_IDs, Master_Barcodes, CartridgeIDs_master, LotIDs_master, projectIDs_master,...
                 Master_hours, Mass_type, Master_dates, Master_mass,Master_IC, Master_ICP, Master_XRF,...
-                Master_carbon, Master_Method, Master_flags,direc_master,site_IDs(loc,:))
+                Master_carbon, Mater_Nylon, Master_Method, Master_flags, direc_master, site_IDs(loc, :))
 
         else
             fprintf('HIPS data not written to %s_master.csv\n',site_IDs(loc,:))

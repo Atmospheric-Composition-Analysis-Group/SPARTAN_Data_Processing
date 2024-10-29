@@ -77,7 +77,7 @@ for loc = 1:length(Site_codes)
       
      [Titles,Master_IDs, Master_Barcodes, Master_CartridgeIDs, Master_LotIDs, Master_ProjectIDs,Master_hours, Master_masstype, ...
       Master_dates, Master_mass, Master_IC, Master_ICP, Master_XRF,...
-      Master_carbon, Master_Method, Master_flags] = ReadMaster(master_file,Site_codes{loc});
+      Master_carbon,Master_Nylon, Master_Method, Master_flags] = ReadMaster(master_file,Site_codes{loc});
      
     if ~isempty(Master_CartridgeIDs) 
         master_exist = 1; % will read exist master file
@@ -328,6 +328,7 @@ for loc = 1:length(Site_codes)
         Master_ICP(rows,:) = NaN;
         Master_XRF(rows,:) = NaN;
         Master_carbon(rows,:) = NaN;
+        Master_Nylon(rows, :) = NaN;
         Master_Method(rows,:) = NaN;
 
         clear new_*
@@ -335,7 +336,7 @@ for loc = 1:length(Site_codes)
         % ---- WRITE FILE -----
         WriteToMaster(Titles,Master_IDs, Master_Barcodes, Master_CartridgeIDs, Master_LotIDs, Master_ProjectIDs,...
             Master_hours, Master_masstype, Master_dates, Master_mass,Master_IC, Master_ICP, Master_XRF,...
-            Master_carbon, Master_Method, Master_flags,direc_master,Site_codes{loc})
+            Master_carbon, Master_Nylon, Master_Method, Master_flags,direc_master,Site_codes{loc})
 
         clear fileID Master_* master_exist master_file h
 end

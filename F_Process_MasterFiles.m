@@ -88,9 +88,6 @@ direc = find_root_dir(debug_mode);
 direc_master = strcat(direc,'/Analysis_Data/Master_files');
 direc_output =  strcat(direc,'/Public_Data');
 
-% optional figure switch:
-additional_pie = 0;
-
 % ---- the diary function saves the processing history into monthly records ----
 diary(sprintf('%s/Public_Data/Data_Processing_Records/Master_File/%s_MasterFile_Processing_Record.txt',direc, datestr(now,'yyyy-mm-dd-HHMMSS')))
 fprintf('%s \n', datestr(now))
@@ -168,7 +165,7 @@ BadNa = table2array(readtable(BadNa,opts));
     master_file = sprintf('%s/%s_master.csv',direc_master,Site_codes{loc});
     [Titles,Master_IDs,   Master_Barcodes, Master_CartridgeIDs, Master_LotIDs, Master_projectIDs,  Master_hours,  Master_masstype, ...
             Master_dates, Master_mass,     Master_IC,           Master_ICP,    Master_XRF,...
-            Master_carbon, Master_Method,  Master_flags] = ReadMaster(master_file,Site_codes{loc} );
+            Master_carbon, Mater_Nylon,    Master_Method,       Master_flags] = ReadMaster(master_file, Site_codes{loc});
     
     Vol_Col = 2; % 2nd col in mass matrix is volume
     IC_title = Titles(contains(Titles,'IC_')); 
@@ -1272,7 +1269,6 @@ BadNa = table2array(readtable(BadNa,opts));
 
     Cl =  mean(PM25_IC(ind,contains(IC_title,'IC_Cl')),'omitnan');
     K =  mean(PM25_IC(ind,contains(IC_title,'IC_K')),'omitnan');
-    N = length(ind); % number of filters included
 
     Pie_made = PM25_RCFMavg_pie_with_Cl(PM25_total, species_plot(ind,:), Cl,K, Site_cities,loc); % function for making pie chart
     if Pie_made == 1
@@ -1295,66 +1291,7 @@ BadNa = table2array(readtable(BadNa,opts));
         clear PM25 SO4 NH4 NO3 Na Cl
     end
 
-       
-
-
-    %% Additional Pie Charts: Cartridge specific pie charts
-    if additional_pie == 1
-
-    infname =  sprintf('%s/Public_Data/Chemical_Filter_Data/Plots/Pie_spec_plots/ByCartridge/Cartridges_need_pie_charts.xlsx',direc);
-    sheets = sheetnames(infname);
-    if sum(contains(sheets,Site_codes{loc}))>0 % there is a sheet for this site
-        cartlist = readtable(infname,'Sheet',Site_codes{loc});
-        cartlist = table2array(cartlist);
-        ind = find(ismember(PM25_cartridgeIDs,cartlist));
-
-        if ~isempty(ind)
-            PM25_total = mean(PM25_data_public(ind,1),'omitnan');
-            Cl =  mean(PM25_IC(ind,contains(IC_title,'IC_Cl')),'omitnan');
-            K =  mean(PM25_IC(ind,contains(IC_title,'IC_K')),'omitnan');
-            N = length(ind); % number of filters included
-
-            Pie_made = PM25_RCFMavg_pie(PM25_total, species_plot(ind,:) , Site_cities,loc); % function for making pie chart
-            if Pie_made == 1
-                % add note of filter number
-                notes = sprintf('Num of Filters = %d',N);
-                text(-0.3, -0.05, notes,'units','normalized')
-
-                fname = sprintf('%s/Public_Data/Chemical_Filter_Data/Plots/Pie_spec_plots/ByCartridge/%s_PM25_RCFMavg',direc,Site_codes{loc});
-                saveas(gcf,sprintf('%s.png',fname))
-                print(sprintf('%s.eps',fname),'-depsc')
-                close all
-            end
-
-            % making another pie chart that includes Cl
-            Pie_made = PM25_RCFMavg_pie_with_Cl(PM25_total, species_plot(ind,:) , Cl,K, Site_cities,loc); % function for making pie chart
-            if Pie_made == 1
-                % add note of filter number
-                notes = sprintf('Num of Filters = %d',N);
-                text(-0.1, -0.05, notes,'units','normalized')
-                saveas(gcf,sprintf('%s_with_Cl.png',fname))
-                print(sprintf('%s_with_Cl.eps',fname),'-depsc')
-                close all
-
-
-                % save data to a xlsx
-                PM25 = PM25_data_public(ind,1);
-                SO4 = PM25_data_public(ind,2);
-                NH4 = PM25_data_public(ind,4);
-                NO3 = PM25_data_public(ind,3);
-                Na = PM25_data_public(ind,6);
-                Cl =  PM25_IC(ind,contains(IC_title,'IC_Cl'));
-                K  =  PM25_IC(ind,contains(IC_title,'IC_K'));
-                savedata_dry(PM25_labels(ind,:), PM25, BC(ind,:), TEO(ind,:), Soil(ind,:), Na, NO3, NH4, SO4, PBW(ind,:), OC_dry(ind,:), RM_dry(ind,:),Cl,K,fname)
-                savedata_wet(PM25_labels(ind,:), PM25, BC(ind,:), TEO(ind,:), Soil(ind,:), ANO3_wet(ind,:), ASO4_wet(ind,:), NaSO4_wet(ind,:), OC_wet(ind,:), RM_wet(ind,:),SSalt_wet(ind,:),fname)
-                clear  PM25 SO4 NO3 NH4 Na Cl
-
-            end
-        end
-    end
-
-    end
-
+    
     %%
     close all
     clear *_dry *_wet BC *_index  colmask nan_idx  Titles  RFM_* Master_* SO4_NSS Soil SSalt_water start_date end_date TEO  Vol_mix 

@@ -116,7 +116,7 @@ for ff = 1:length(allfname)
         master_file = sprintf('%s/%s_master.csv',direc_master,unique_site{loc});
         [Titles,Master_IDs, Master_Barcodes, CartridgeIDs_master, LotIDs_master, projectIDs_master,...
             Master_hours, Mass_type, Master_dates, Master_mass,Master_IC, Master_ICP, Master_XRF,...
-            Master_carbon, Master_Method, Master_flags] = ReadMaster ( master_file, unique_site{loc});
+            Master_carbon, Mater_Nylon, Master_Method, Master_flags] = ReadMaster (master_file, unique_site{loc});
         
         ind = find(contains(filter_id,unique_site{loc}));
         filter_id_site = filter_id(ind);
@@ -148,7 +148,7 @@ for ff = 1:length(allfname)
             % Write master file
             WriteToMaster(Titles,Master_IDs, Master_Barcodes, CartridgeIDs_master, LotIDs_master, projectIDs_master,...
                 Master_hours, Mass_type, Master_dates, Master_mass,Master_IC, Master_ICP, Master_XRF,...
-                Master_carbon, Master_Method, Master_flags,direc_master,unique_site{loc})
+                Master_carbon, Mater_Nylon, Master_Method, Master_flags, direc_master, unique_site{loc})
 
         else
             fprintf('FTIR data not written to %s_master.csv\n',unique_site{loc})

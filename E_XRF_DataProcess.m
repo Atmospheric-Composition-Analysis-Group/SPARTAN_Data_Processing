@@ -124,7 +124,7 @@ for XRF_file = 1:length(files)
     master_file = sprintf('%s/%s_master.csv',direc_master,site_ID);
     [Titles,Master_IDs, Master_Barcodes, CartridgeIDs_master, LotIDs_master, projectIDs_master,...
         Master_hours, Mass_type, Master_dates, Master_mass,Master_IC, Master_ICP, Master_XRF,...
-        Master_carbon, Master_Method, Master_flags] = ReadMaster ( master_file, site_ID );
+        Master_carbon, Mater_Nylon, Master_Method, Master_flags] = ReadMaster (master_file, site_ID);
     
     % writing new XRF data to Master_XRF
     master_idx = find(contains(Master_IDs, xrf_IDs));
@@ -133,7 +133,7 @@ for XRF_file = 1:length(files)
     % Write master file 
     WriteToMaster(Titles,Master_IDs, Master_Barcodes, CartridgeIDs_master, LotIDs_master, projectIDs_master,...
         Master_hours, Mass_type, Master_dates, Master_mass,Master_IC, Master_ICP, Master_XRF,...
-        Master_carbon, Master_Method, Master_flags,direc_master,site_ID)
+        Master_carbon, Mater_Nylon, Master_Method, Master_flags, direc_master, site_ID)
     
     % move raw data to archive
     file_destination = strcat(direc_archive,sprintf('%s/',site_ID));

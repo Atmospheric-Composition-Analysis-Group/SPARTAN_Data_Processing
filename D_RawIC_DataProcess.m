@@ -157,7 +157,7 @@ if Redo_All_Archieve == 1
 
             [Titles,Filter_ID, Barcode, CartridgeID, LotID, projectID,Sample_hour, masstype, ...
                 Master_dates, Master_mass, Master_IC, Master_ICP, Master_XRF,...
-                Master_carbon, Master_Method, Master_flags] = ReadMaster(master_file,Site_codes{loc});
+                Master_carbon, Mater_Nylon, Master_Method, Master_flags] = ReadMaster(master_file, Site_codes{loc});
 
             % delete if there is an exiting file & create a new one using 'read_and_update'
             area_file = sprintf('%s/%s_IC_Area.xlsx',direc_area,Site_codes{loc});
@@ -191,7 +191,6 @@ end
 
 % now read files in the raw file directory
 files = getFiles(direc_new);
-
  
 %% %%%%%%%%%%%% Processing each file %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 for IC_file = 1:length(files)
@@ -452,19 +451,21 @@ for IC_file = 1:length(files)
             Samples_ind = removerows(Samples_ind, ind); % removes lab blanks from index to samples
         end
 
-       % remove filters end with 'N' as they are not for master files
-        num_dash = zeros(size(Samples_ind));
+       % separate filters end with 'N' as they are not for master files
+        if_nylon = zeros(size(Samples_ind));
         for i = 1:length(Samples_ind)
             tfilter = labels_all{Samples_ind(i)};
             if tfilter(end) == 'N'
-                num_dash(i) = 1;
+                if_nylon(i) = 1;
             end
         end
-        ind = find(num_dash==1);
-        Samples_ind = removerows(Samples_ind, ind);  clear num_dash i ind
+        ind = find(if_nylon==1);
+        nylon_ind = Samples_ind(if_nylon==1);
+        Samples_ind = removerows(Samples_ind, ind);  clear if_nylon i ind
 
 
         % removes double dashed samples from index to samples
+        num_dash = zeros(size(Samples_ind));
         for i = 1:length(Samples_ind)
             num_dash(i) = count(labels_all(Samples_ind(i)),"-"); 
         end
@@ -474,19 +475,29 @@ for IC_file = 1:length(files)
         % ----Get data for different data type (standards, samples, lab blanks, and waters) ------
         data_STD = data_all(STD_ind,:);
         data_H2O = data_all(H2O_ind(2:end),:); % first water is often not representative of run, therefore start at second water
-        data_samples = data_all(Samples_ind,:);
+        data_teflon = data_all(Samples_ind,:);
+        data_nylon = data_all(nylon_ind,:);
 %         data_samples(isnan(data_samples)) = 0; % if there is no ion concentration found, set to zero rather than NaN in file. NaN indicates a missing number
         data_LB = data_all(LB_ind,:);
         area_samples = data_pre(Samples_ind,:);
 
         labels_stds = labels_all(STD_ind);
-        labels_samples = labels_all(Samples_ind);
-        labels_sample_char = char(labels_all(Samples_ind));
-        site_IDs = unique(labels_sample_char(:,1:4),'rows');
+        labels_teflon = labels_all(Samples_ind);
+        labels_nylon = labels_all(nylon_ind);
+        labels_nylon2 = labels_nylon;
+        for i = 1:length(labels_nylon)
+            tlabel = char(labels_nylon(i));
+            tlabel = tlabel(1:end-1); % remove 'N'
+            labels_nylon(i) = tlabel;
+        end
+
+        % identify sites 
+        labels_char = char(labels_all([Samples_ind; nylon_ind]));
+        site_IDs = unique(labels_char(:,1:4),'rows');
         labels_LB = labels_all(LB_ind);
         
-        clear *_ind num_cal raw_cal txt_cal labels_sample_char
-        MDL_flags = cell(size(data_samples,1),1);
+        clear *_ind num_cal raw_cal txt_cal labels_teflon_char
+        MDL_flags = cell(size(data_teflon,1),1);
 
         
         %-------- This section check if the QC STD 1.25 concentration is within +/-10 % of the specified concentration for each anion -------
@@ -517,7 +528,7 @@ for IC_file = 1:length(files)
         
         % combine flags for writing to data file
         if size(calib_flags,1) > 0
-            for t = 1:length(data_samples)
+            for t = 1:length(data_teflon)
                 MDL_flags{t} = AddFlagIC(MDL_flags{t},calib_flags);
             end
             fprintf('Anion flags for this file are: %s \n',calib_flags)
@@ -539,7 +550,7 @@ for IC_file = 1:length(files)
             
            [Titles,Master_IDs, Master_Barcodes, CartridgeIDs_master, LotIDs, projectIDs_master,Master_hours, Master_masstype, ...
             Master_dates, Master_mass, Master_IC, Master_ICP, Master_XRF,...
-            Master_carbon, Master_Method, Master_flags] = ReadMaster(master_file,site_IDs(i,:));
+            Master_carbon, Master_Nylon, Master_Method, Master_flags] = ReadMaster(master_file,site_IDs(i,:));
 
            if ~isempty(Master_IDs)
 
@@ -550,24 +561,25 @@ for IC_file = 1:length(files)
                mdl_file = sprintf('%s/%s_IC_MDL.xlsx',direc_mdl,site_IDs(i,:));
                mdl_table = read_and_update(mdl_file,Master_IDs,CartridgeIDs_master,Master_dates,Master_masstype);
 
-               samples_ICfile_ind = find(contains(labels_samples,site_IDs(i,:))); % index of samples for site_ID(i) in IC file
+               samples_ICfile_ind = find(contains(labels_teflon,site_IDs(i,:))); % index of samples for site_ID(i) in IC file
                 
-                masterID_sample_ind = [];
+               % find the index of teflon filters in the master file
+                masterID_teflon_ind = [];
                 for k = 1:length(samples_ICfile_ind)
-                    if ~isempty( find(matches(Master_IDs, labels_samples(samples_ICfile_ind(k))),1) ) 
+                    if ~isempty( find(matches(Master_IDs, labels_teflon(samples_ICfile_ind(k))),1) ) 
                         % filter ID found in Master_IDs
-                        masterID_sample_ind(k) = find(matches(Master_IDs, labels_samples(samples_ICfile_ind(k)))); % finds the row index in the master file for samples in IC file
-                        samples_IC_Master(k) = samples_ICfile_ind(k);
+                        masterID_teflon_ind(k) = find(matches(Master_IDs, labels_teflon(samples_ICfile_ind(k)))); % finds the row index in the master file for samples in IC file
+                        teflon_IC_Master(k) = samples_ICfile_ind(k);
                     else
                         % filter ID not found: could be filter ID format
                         % mismatch, try fix it
-                        tfilterid = char(labels_samples(samples_ICfile_ind(k))) ;
+                        tfilterid = char(labels_teflon(samples_ICfile_ind(k))) ;
                         if length(tfilterid) == 8
                             tfilterid2 = strcat(tfilterid(1:5),'0',tfilterid(6:8));
-                            masterID_sample_ind(k) = find(matches(Master_IDs, tfilterid2)); % finds the row index in the master file for samples in IC file
-                            samples_IC_Master(k) = samples_ICfile_ind(k);
+                            masterID_teflon_ind(k) = find(matches(Master_IDs, tfilterid2)); % finds the row index in the master file for samples in IC file
+                            teflon_IC_Master(k) = samples_ICfile_ind(k);
                         else
-                            tfilter = labels_samples(samples_ICfile_ind(k));
+                            tfilter = labels_teflon(samples_ICfile_ind(k));
 
                             warning( '%s not found in Master File\n',tfilter)
                             NN = NN +1;
@@ -576,30 +588,77 @@ for IC_file = 1:length(files)
                     end
                 end
          
+                % find the index of nylon filters in the master file
+                samples_ICfile_ind = find(contains(labels_nylon,site_IDs(i,:))); % index of samples for site_ID(i) in IC file
+                
+                 masterID_nylon_ind = [];
+                for k = 1:length(samples_ICfile_ind)
+                    if ~isempty( find(matches(Master_IDs, labels_nylon(samples_ICfile_ind(k))),1) ) 
+                        % filter ID found in Master_IDs
+                        masterID_nylon_ind(k) = find(matches(Master_IDs, labels_nylon(samples_ICfile_ind(k)))); % finds the row index in the master file for samples in IC file
+                        nylon_IC_Master(k) = samples_ICfile_ind(k);
+                    else
+                        % filter ID not found: could be filter ID format
+                        % mismatch, try fix it
+                        tfilterid = char(labels_nylon(samples_ICfile_ind(k))) ;
+                        if length(tfilterid) == 8
+                            tfilterid2 = strcat(tfilterid(1:5),'0',tfilterid(6:8));
+                            masterID_nylon_ind(k) = find(matches(Master_IDs, tfilterid2)); % finds the row index in the master file for samples in IC file
+                            nylon_IC_Master(k) = samples_ICfile_ind(k);
+                        else
+                            tfilter = labels_nylon(samples_ICfile_ind(k));
 
-                if ~isempty(masterID_sample_ind) 
-                    elog_index = find(contains(Sheets_elog,site_IDs(i,:)) == 1);
-                    Elog_SheetName = char(Sheets_elog(elog_index));
-                    cell_elog=readcell(Elog_filename,'Sheet',Elog_SheetName);
-                    [extraction_volumes,extraction_dates] = GetVolume(cell_elog,Master_IDs,masterID_sample_ind);
+                            warning( '%s not found in Master File\n',tfilter)
+                            NN = NN +1;
+
+                        end
+                    end
+                end
+
+                % get extracton volume
+                elog_index = find(contains(Sheets_elog,site_IDs(i,:)) == 1);
+                Elog_SheetName = char(Sheets_elog(elog_index));
+                cell_elog=readcell(Elog_filename,'Sheet',Elog_SheetName);
+
+                % nylon data
+                if ~isempty(masterID_nylon_ind)
+                    % nan out -xxxxx before writing to master files
+                    temp = data_nylon(nylon_IC_Master,:);
+                    temp(temp<-100) = nan;
+                    data_nylon(nylon_IC_Master,:) = temp;
+
+                    [extraction_volumes_N,extraction_dates_N] = GetVolume(cell_elog,labels_nylon2(samples_ICfile_ind));
+                    Master_Nylon(masterID_nylon_ind,1:7) = data_nylon(nylon_IC_Master,:).*extraction_volumes_N;
+
+                    % write to master file
+                    WriteToMaster ( Titles,Master_IDs, Master_Barcodes, CartridgeIDs_master, LotIDs, projectIDs_master,...
+                                    Master_hours, Master_masstype, Master_dates, Master_mass,Master_IC, Master_ICP, Master_XRF,...
+                                    Master_carbon,Master_Nylon, Master_Method, Master_flags,...
+                                    direc_master,site_IDs(i,:))
+                end
+
+                % proceed to write data to master_IC and master_nylon
+                if ~isempty(masterID_teflon_ind) 
+
+                    [extraction_volumes,extraction_dates] = GetVolume(cell_elog,Master_IDs(masterID_teflon_ind));
                     
                     % find any zeros and print to 'IC_zero.txt'
-                    find_ic_zeros(data_samples(samples_IC_Master,:), Master_IDs(masterID_sample_ind), ...
-                        extraction_dates, Master_masstype(masterID_sample_ind), ic_zero_fname, data_type)
+                    find_ic_zeros(data_teflon(teflon_IC_Master,:), Master_IDs(masterID_teflon_ind), ...
+                        extraction_dates, Master_masstype(masterID_teflon_ind), ic_zero_fname, data_type)
                     % nan out -xxxxx before writing to master files
-                    temp = data_samples(samples_IC_Master,:);
+                    temp = data_teflon(teflon_IC_Master,:);
                     temp(temp<-100) = nan;
-                    data_samples(samples_IC_Master,:) = temp;
+                    data_teflon(teflon_IC_Master,:) = temp;
 
 
                     % adding IC data to Master_IC
-                    Master_IC(masterID_sample_ind,1:7) = data_samples(samples_IC_Master,:).*extraction_volumes;
+                    Master_IC(masterID_teflon_ind,1:7) = data_teflon(teflon_IC_Master,:).*extraction_volumes;
 
 
                     % adding area to area file
                     for ii = 1:7
-                        if size(area_table(masterID_sample_ind,5+ii)) == size(area_samples(samples_IC_Master,ii))
-                            area_table(masterID_sample_ind,5+ii) = table(area_samples(samples_IC_Master,ii));
+                        if size(area_table(masterID_teflon_ind,5+ii)) == size(area_samples(teflon_IC_Master,ii))
+                            area_table(masterID_teflon_ind,5+ii) = table(area_samples(teflon_IC_Master,ii));
                         else
                             error('size of area data do not match')
                         end
@@ -607,23 +666,22 @@ for IC_file = 1:length(files)
 
                     % adding mdl to mdl file
                     for ii = 1:7
-                        mdl_table(masterID_sample_ind,5+ii) = table(mdl_calc(1,ii).*extraction_volumes);
+                        mdl_table(masterID_teflon_ind,5+ii) = table(mdl_calc(1,ii).*extraction_volumes);
                     end
 
                     % adding flag to master_initial_flag
                     if exist('MDL_flags','var')
-                    for k = 1:numel(masterID_sample_ind)
-                        Master_flags{masterID_sample_ind(k)} = AddFlag( Master_flags{masterID_sample_ind(k)} , MDL_flags{samples_IC_Master(k)} );
+                    for k = 1:numel(masterID_teflon_ind)
+                        Master_flags{masterID_teflon_ind(k)} = AddFlag( Master_flags{masterID_teflon_ind(k)} , MDL_flags{teflon_IC_Master(k)} );
                     end
                     end
-
 
 
                     % --- finish this site ---
                     % write to master file
                     WriteToMaster ( Titles,Master_IDs, Master_Barcodes, CartridgeIDs_master, LotIDs, projectIDs_master,...
                                     Master_hours, Master_masstype, Master_dates, Master_mass,Master_IC, Master_ICP, Master_XRF,...
-                                    Master_carbon, Master_Method, Master_flags,...
+                                    Master_carbon,Master_Nylon, Master_Method, Master_flags,...
                                     direc_master,site_IDs(i,:))
                     % write to area file
                     writetable(area_table,area_file)
@@ -635,8 +693,8 @@ for IC_file = 1:length(files)
                 end
             end  
             
-            clear Master_data Master_data_initial txt_elog raw_elog num_elog extraction_volumes LotIDs_master
-            clear Master_IDs masterID_sample_ind samples_ICfile_ind samples_IC_Master CartridgeIDs_master LotIDs
+            clear Master_data Master_data_initial txt_elog raw_elog num_elog extraction_volumes LotIDs_master Master_IC
+            clear Master_IDs masterID_teflon_ind masterID_nylon_ind samples_ICfile_ind teflon_IC_Master nylon_IC_Master CartridgeIDs_master LotIDs
             clear Master_flags Master_flags_initial master_file hours_sampled Master_hours projectIDs_master Master_Barcodes 
         end
         
@@ -807,18 +865,20 @@ for IC_file = 1:length(files)
             Samples_ind = removerows(Samples_ind, ind); % removes lab blanks from index to samples
         end
         
-        % remove filters end with 'N' as they are not for master files
-        num_dash = zeros(size(Samples_ind));
+        % separate filters end with 'N' as they are not for master files
+        if_nylon = zeros(size(Samples_ind));
         for i = 1:length(Samples_ind)
             tfilter = labels_all{Samples_ind(i)};
             if tfilter(end) == 'N'
-                num_dash(i) = 1;
+                if_nylon(i) = 1;
             end
         end
-        ind = find(num_dash==1);
-        Samples_ind = removerows(Samples_ind, ind);  clear num_dash i ind
+        ind = find(if_nylon==1);
+        nylon_ind = Samples_ind(if_nylon==1);
+        Samples_ind = removerows(Samples_ind, ind);  clear if_nylon i ind
 
         % remove rows with extra dashes
+        num_dash = zeros(size(Samples_ind));
         for i = 1:length(Samples_ind)
             num_dash(i) = count(labels_all(Samples_ind(i)),"-");
         end
@@ -828,19 +888,30 @@ for IC_file = 1:length(files)
         % ----Get data for different data type (standards, samples, lab blanks, and waters) ------
         data_STD = data_all(STD_ind,:);
         data_H2O = data_all(H2O_ind(2:end),:); % first water is often not representative of run, therefore start at second water
-        data_samples = data_all(Samples_ind,:);
+        data_teflon = data_all(Samples_ind,:);
+        data_nylon = data_all(nylon_ind,:);
 %         data_samples(isnan(data_samples)) = 0; % if there is no ion concentration found, set to zero rather than NaN in file. NaN indicates a missing number
         data_LB = data_all(LB_ind,:);
         area_samples = data_pre(Samples_ind,:);
 
         labels_stds = labels_all(STD_ind);
-        labels_samples = labels_all(Samples_ind);
-        labels_sample_char = char(labels_all(Samples_ind));
-        site_IDs = unique(labels_sample_char(:,1:4),'rows');
+        labels_teflon = labels_all(Samples_ind);
+
+        labels_nylon = labels_all(nylon_ind);
+        labels_nylon2 = labels_nylon;
+        for i = 1:length(labels_nylon)
+            tlabel = char(labels_nylon(i));
+            tlabel = tlabel(1:end-1); % remove 'N'
+            labels_nylon(i) = tlabel;
+        end
+
+        % identify sites 
+        labels_char = char(labels_all([Samples_ind; nylon_ind]));
+        site_IDs = unique(labels_char(:,1:4),'rows');
         labels_LB = labels_all(LB_ind);
-        
-        clear *_ind num_cal raw_cal txt_cal labels_sample_char
-        MDL_flags = cell(size(data_samples,1),1);
+
+        clear *_ind num_cal raw_cal txt_cal 
+        MDL_flags = cell(size(data_teflon,1),1);
         
         % This check is remove as we will report MDL in the public files.
 %         % --------- Check that data is above MDL, if not, set to 0 ----------
@@ -882,7 +953,7 @@ for IC_file = 1:length(files)
         
         % Create proper flag matrix for writing to data file
         if size(calib_flags,1) > 0
-            for t = 1:length(data_samples)
+            for t = 1:length(data_teflon)
                 MDL_flags{t} = AddFlagIC(MDL_flags{t},calib_flags);
             end
             fprintf('Cation flags for this file are: %s \n',calib_flags)
@@ -900,7 +971,7 @@ for IC_file = 1:length(files)
              
             [Titles,Master_IDs, Master_Barcodes, CartridgeIDs_master, LotIDs, projectIDs_master,Master_hours, Master_masstype, ...
                 Master_dates, Master_mass, Master_IC, Master_ICP, Master_XRF,...
-                Master_carbon, Master_Method, Master_flags] = ReadMaster(master_file,site_IDs(i,:));
+                Master_carbon, Master_Nylon, Master_Method, Master_flags] = ReadMaster(master_file,site_IDs(i,:));
 
             if ~isempty(Master_IDs)
 
@@ -911,48 +982,89 @@ for IC_file = 1:length(files)
                mdl_file = sprintf('%s/%s_IC_MDL.xlsx',direc_mdl,site_IDs(i,:));
                mdl_table = read_and_update(mdl_file,Master_IDs,CartridgeIDs_master,Master_dates,Master_masstype);
 
+                % find index of teflon filter in master file
+                samples_ICfile_ind = find(contains(labels_teflon,site_IDs(i,:))); % index of samples for site_ID(i) in IC file
 
-                samples_ICfile_ind = find(contains(labels_samples,site_IDs(i,:))); % index of samples for site_ID(i) in IC file
-
-                masterID_sample_ind = [];
+                masterID_teflon_ind = [];
                 for k = 1:length(samples_ICfile_ind)
-                    if isempty( find(matches(Master_IDs, labels_samples(samples_ICfile_ind(k))),1) ) == 0
-                        masterID_sample_ind(k) = find(matches(Master_IDs, labels_samples(samples_ICfile_ind(k)))); % finds the row index in the master file for samples in IC file
-                        samples_IC_Master(k) = samples_ICfile_ind(k);
+                    if isempty( find(matches(Master_IDs, labels_teflon(samples_ICfile_ind(k))),1) ) == 0
+                        masterID_teflon_ind(k) = find(matches(Master_IDs, labels_teflon(samples_ICfile_ind(k)))); % finds the row index in the master file for samples in IC file
+                        teflon_IC_Master(k) = samples_ICfile_ind(k);
                     else
-                        tfilterid = char(labels_samples(samples_ICfile_ind(k))) ;
+                        tfilterid = char(labels_teflon(samples_ICfile_ind(k))) ;
                         if length(tfilterid) == 8
                             tfilterid2 = strcat(tfilterid(1:5),'0',tfilterid(6:8));
-                            masterID_sample_ind(k) = find(matches(Master_IDs, tfilterid2)); % finds the row index in the master file for samples in IC file
-                            samples_IC_Master(k) = samples_ICfile_ind(k);
+                            masterID_teflon_ind(k) = find(matches(Master_IDs, tfilterid2)); % finds the row index in the master file for samples in IC file
+                            teflon_IC_Master(k) = samples_ICfile_ind(k);
                         else
-                            warning( '%s not found in Master File\n',labels_samples(samples_ICfile_ind(k)) )
+                            warning( '%s not found in Master File\n',labels_teflon(samples_ICfile_ind(k)) )
+                            NN = NN + 1;
+                        end
+                    end
+                end
+
+                % find index of nylon filter in master file
+                samples_ICfile_ind = find(contains(labels_nylon,site_IDs(i,:))); % index of samples for site_ID(i) in IC file
+
+                masterID_nylon_ind = [];
+                for k = 1:length(samples_ICfile_ind)
+                    if isempty( find(matches(Master_IDs, labels_nylon(samples_ICfile_ind(k))),1) ) == 0
+                        masterID_nylon_ind(k) = find(matches(Master_IDs, labels_nylon(samples_ICfile_ind(k)))); % finds the row index in the master file for samples in IC file
+                        nylon_IC_Master(k) = samples_ICfile_ind(k);
+                    else
+                        tfilterid = char(labels_nylon(samples_ICfile_ind(k))) ;
+                        if length(tfilterid) == 8
+                            tfilterid2 = strcat(tfilterid(1:5),'0',tfilterid(6:8));
+                            masterID_nylon_ind(k) = find(matches(Master_IDs, tfilterid2)); % finds the row index in the master file for samples in IC file
+                            nylon_IC_Master(k) = samples_ICfile_ind(k);
+                        else
+                            warning( '%s not found in Master File\n',labels_nylon(samples_ICfile_ind(k)) )
                             NN = NN + 1;
                         end
                     end
                 end
                        
-                if isempty(masterID_sample_ind) == 0
-                    elog_index = find(contains(Sheets_elog,site_IDs(i,:)) == 1);
-                    Elog_SheetName = char(Sheets_elog(elog_index));
-                    cell_elog=readcell(Elog_filename,'Sheet',Elog_SheetName);
-                    [extraction_volumes, extraction_dates] = GetVolume(cell_elog,Master_IDs,masterID_sample_ind);
+                % get extraction volume
+                elog_index = find(contains(Sheets_elog,site_IDs(i,:)) == 1);
+                Elog_SheetName = char(Sheets_elog(elog_index));
+                cell_elog=readcell(Elog_filename,'Sheet',Elog_SheetName);
+                
+                if isempty(masterID_nylon_ind) == 0
+                    % nan out -xxxxx before writing to master files
+                    temp = data_nylon(nylon_IC_Master,:);
+                    temp(temp<-100) = nan;
+                    data_nylon(nylon_IC_Master,:) = temp;
+
+                    [extraction_volumes_N, extraction_dates_N] = GetVolume(cell_elog,labels_nylon2(samples_ICfile_ind));
+                    % adding IC data to Master_IC
+                    Master_Nylon(masterID_nylon_ind, 8:13) = data_nylon(nylon_IC_Master,:).*extraction_volumes_N;
+                    
+                    % save to master file
+                    WriteToMaster( Titles,Master_IDs, Master_Barcodes, CartridgeIDs_master, LotIDs, projectIDs_master,...
+                        Master_hours, Master_masstype, Master_dates, Master_mass,Master_IC, Master_ICP, Master_XRF,...
+                        Master_carbon,Master_Nylon, Master_Method, Master_flags,...
+                        direc_master,site_IDs(i,:))
+
+                end
+                       
+                if isempty(masterID_teflon_ind) == 0
+                    [extraction_volumes, extraction_dates] = GetVolume(cell_elog,Master_IDs(masterID_teflon_ind));
                     
                     % find any zeros and print to 'IC_zero.txt'
-                    find_ic_zeros(data_samples(samples_IC_Master,:), Master_IDs(masterID_sample_ind), ...
-                        extraction_dates, Master_masstype(masterID_sample_ind), ic_zero_fname, data_type)
+                    find_ic_zeros(data_teflon(teflon_IC_Master,:), Master_IDs(masterID_teflon_ind), ...
+                        extraction_dates, Master_masstype(masterID_teflon_ind), ic_zero_fname, data_type)
                     % nan out -xxxxx before writing to master files
-                    temp = data_samples(samples_IC_Master,:);
+                    temp = data_teflon(teflon_IC_Master,:);
                     temp(temp<-100) = nan;
-                    data_samples(samples_IC_Master,:) = temp;
+                    data_teflon(teflon_IC_Master,:) = temp;
 
                     % adding IC data to Master_IC
-                    Master_IC(masterID_sample_ind, 8:13) = data_samples(samples_IC_Master,:).*extraction_volumes;
+                    Master_IC(masterID_teflon_ind, 8:13) = data_teflon(teflon_IC_Master,:).*extraction_volumes;
         
                     % adding area to area file
                     for ii = 1:6
-                        if size(area_table(masterID_sample_ind,5+7+ii)) == size(area_samples(samples_IC_Master,ii))
-                            area_table(masterID_sample_ind,5+7+ii)= table(area_samples(samples_IC_Master,ii));
+                        if size(area_table(masterID_teflon_ind,5+7+ii)) == size(area_samples(teflon_IC_Master,ii))
+                            area_table(masterID_teflon_ind,5+7+ii)= table(area_samples(teflon_IC_Master,ii));
                         else
                             error('size of area data do not match')
                         end
@@ -960,13 +1072,14 @@ for IC_file = 1:length(files)
 
                     % adding mdl to mdl file
                     for ii = 1:6
-                        mdl_table(masterID_sample_ind,5+7+ii) = table(mdl_calc(1,ii).*extraction_volumes);
+                        mdl_table(masterID_teflon_ind,5+7+ii) = table(mdl_calc(1,ii).*extraction_volumes);
+                        
                     end
 
                     % adding flag to master_initial_flag
                     if exist('Flags','var')
-                    for k = 1:numel(masterID_sample_ind)
-                        Master_flags{masterID_sample_ind(k)}  = AddFlag( Master_flags{masterID_sample_ind(k)} , MDL_flags{samples_IC_Master(k)} );
+                    for k = 1:numel(masterID_teflon_ind)
+                        Master_flags{masterID_teflon_ind(k)}  = AddFlag( Master_flags{masterID_teflon_ind(k)} , MDL_flags{teflon_IC_Master(k)} );
                     end
                     end
                     clear ind index filler
@@ -975,7 +1088,7 @@ for IC_file = 1:length(files)
                     % save to master file
                     WriteToMaster( Titles,Master_IDs, Master_Barcodes, CartridgeIDs_master, LotIDs, projectIDs_master,...
                              Master_hours, Master_masstype, Master_dates, Master_mass,Master_IC, Master_ICP, Master_XRF,...
-                             Master_carbon, Master_Method, Master_flags,...
+                             Master_carbon,Master_Nylon, Master_Method, Master_flags,...
                              direc_master,site_IDs(i,:))
                         
                     % save to area file
@@ -984,18 +1097,19 @@ for IC_file = 1:length(files)
                     % save to mdl file
                     writetable(mdl_table,mdl_file)
 
-                    clear Master_data Master_data_initial Master_flags Master_flags_initial Master_IDs masterID_sample_ind samples_ICfile_ind area_table
                     fprintf('Finished writing cation data to %s master data file \n', site_IDs(i,:))
                     
                 else
                     fprintf('Samples in IC file not found in %s Master file \n', site_IDs(i,:));
                     disp('Moving on to next site')
                 end
-                
+
+                clear   Master_flags Master_IDs masterID_teflon_ind samples_ICfile_ind area_table Master_IC
+                 
             end
             
-            clear Master_data Master_data_initial txt_elog raw_elog num_elog extraction_volumes LotIDs_master
-            clear Master_IDs masterID_sample_ind samples_ICfile_ind samples_IC_Master CartridgeIDs_master LotIDs
+            clear   txt_elog raw_elog num_elog extraction_volumes LotIDs_master 
+            clear Master_IDs masterID_teflon_ind masterID_nylon_ind samples_ICfile_ind teflon_IC_Master nylon_IC_Master CartridgeIDs_master LotIDs
             clear Master_flags Master_flags_initial master_file hours_sampled Master_hours projectIDs_master Master_Barcodes 
             
         end
@@ -1030,9 +1144,9 @@ for IC_file = 1:length(files)
     
     %%%%%%%%%%%%%%%%%%%%% END OF CATION SECTION OF SORTING AND QC %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
-    clear cal_corrcoeff data_all data_H2O data_LB data_samples data_STD data_STD_QC  fileID calib_flags h H2O_avg 
-    clear k labels_all labels_LB  labels_samples labels_stds Master_data Master_data_initial
-    clear Master_IDs masterID_sample_ind QC_avgpercentdiff QC_STD_ind Flags samples_ICfile_ind site_IDs data_post data_pre
+    clear cal_corrcoeff data_all data_H2O data_LB data_teflon data_STD data_STD_QC  fileID calib_flags h H2O_avg 
+    clear k labels_all labels_LB  labels_teflon labels_stds Master_data Master_data_initial
+    clear Master_IDs masterID_teflon_ind QC_avgpercentdiff QC_STD_ind Flags samples_ICfile_ind site_IDs data_post data_pre
     clear t time_now Titles J F Cl Br NO2 NO3 PO4 SO4 Master_flags Master_flags_initial master_file num_dash status
     
     
@@ -1364,7 +1478,7 @@ end
 
 end
 
-function [extraction_volumes, extraction_dates] = GetVolume(cell_elog,Master_IDs,masterID_sample_ind)
+function [extraction_volumes, extraction_dates] = GetVolume(cell_elog,Master_IDs)
 elog_ID = cell_elog(:,3);
 for i = 1:length(elog_ID)
    if ismissing( elog_ID{i} )
@@ -1373,16 +1487,16 @@ for i = 1:length(elog_ID)
 end
 
 % find the filter ind in elog file
-Ind = nan(length(masterID_sample_ind),1);
+Ind = nan(length(Master_IDs),1);
 
-for ii = 1:length(masterID_sample_ind)
-    a = find( matches( elog_ID, Master_IDs(masterID_sample_ind(ii)) ) );
+for ii = 1:length(Master_IDs)
+    a = find( matches( elog_ID, Master_IDs(ii) ) );
     if length(a)==1
         Ind(ii) = a;
     elseif length(a) > 1
-        error('%d record found in elog for %s',length(a),Master_IDs(masterID_sample_ind(ii)))
+        error('%d record found in elog for %s',length(a),Master_IDs(ii))
     else
-        tfilter = char(Master_IDs(masterID_sample_ind(ii)));
+        tfilter = char(Master_IDs(ii));
         tfilter2(1:5) = tfilter(1:5);
         tfilter2(6:8) = tfilter(7:9);
         a = find( matches( elog_ID, tfilter2 ) );
