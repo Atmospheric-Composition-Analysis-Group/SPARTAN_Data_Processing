@@ -1,4 +1,4 @@
-%% %%%%%%%%%%%%%%%%%%%%%%%%%% CODE DESCRIPTION %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ %% %%%%%%%%%%%%%%%%%%%%%%%%%% CODE DESCRIPTION %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % PURPOSE: read and perform QA/QC on IC data straight from the IC
 % system with no pre-processing; put IC data and relevant flags in the
 % Master data file for each SPARTAN site that has data contained in the IC

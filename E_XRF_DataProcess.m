@@ -11,6 +11,9 @@
 % Created: 16 January 2020
 
 % EDITS:
+% 30-01-2025 Haihui Zhu:
+% NOTE: attenuation effect is considered in script F. 
+% This sript report the original signal to the master files
 
 % 25-Aug-2021 Haihui Zhu:
 %   1. Implement ReadMaster function and WriteToMaster function so that 

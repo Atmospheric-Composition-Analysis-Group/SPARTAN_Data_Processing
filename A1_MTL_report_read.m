@@ -28,9 +28,9 @@ debug_mode = 0;
 direc = find_root_dir(debug_mode);
 replace_warning = 1; % if you expect to have many values replaced and don't want to see the warnings, turn this off (= 0). 
 
-direc_new=strcat(direc,'Analysis_Data/Filter_Masses/NEW_MTL');
-direc_output=strcat(direc,'Analysis_Data/Filter_Masses/Masses_by_site/MTL_weighing_WashU'); 
-direc_archive=strcat(direc, 'Analysis_Data/Archived_Filter_Data/MTL_masses');
+direc_new=strcat(direc,'/Analysis_Data/Filter_Masses/NEW_MTL');
+direc_output=strcat(direc,'/Analysis_Data/Filter_Masses/Masses_by_site/MTL_weighing_WashU'); 
+direc_archive=strcat(direc, '/Analysis_Data/Archived_Filter_Data/MTL_masses');
 
 % Diary
 diary(sprintf('%s/Public_Data/Data_Processing_Records/MTL_masses/%s_MTLmasses_Record.txt',direc,datestr(now,'yyyy-mm-dd-HHMMSS')))
