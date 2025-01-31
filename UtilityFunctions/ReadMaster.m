@@ -144,7 +144,7 @@ if exist(master_file,'file')
         Master_Nylon = nan.*Master_IC;
 
     elseif numel(Orig_title) == 96 && size(Master_IC,2) == 26
-        Master_IC  = table2array(Master_data_initial( :, contains(Orig_title,'IC_') & endsWith(Orig_title,'_T') ));
+        Master_IC = table2array(Master_data_initial(:, contains(Titles, 'IC_') & endsWith(Titles, '_T')));
 
     end
 

@@ -9,7 +9,7 @@ function direc = find_root_dir(debug_mode)
         direc='/Volumes/rvmartin/Active/haihuizhu/6.SPARTAN/'; 
     
     elseif contains(currentdir,'storage1/fs1') && debug_mode == 0
-        direc='/storage1/fs1/rvmartin/Active/SPARTAN-shared'; 
+        direc='/storage1/fs1/rvmartin/Active/SPARTAN-shared/'; 
 
     elseif contains(currentdir,'storage1/fs1') && debug_mode == 1
         direc='/storage1/fs1/rvmartin/Active/haihuizhu/6.SPARTAN/'; 

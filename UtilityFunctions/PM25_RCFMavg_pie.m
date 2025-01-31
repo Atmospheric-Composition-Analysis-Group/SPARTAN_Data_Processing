@@ -1,16 +1,23 @@
 
 function [Pie_made] = PM25_RCFMavg_pie(PM25_total, species_plot, Site_cities,loc)
 
-% Don't want to include OC when only few filters has OC data
-ind = find(isnan(species_plot(:,end-1)) == 1 ); % OC is not available
+% === comment out on Oct 30, 2024, Haihui [on-going] ===
+% temporarily avoid reporting fraction of FITR OC in pie chars.
+% Instead, reporting only RM as the sum of current OC and RM
 
-if length(ind) == size(species_plot,1)
-    species_plot(:,end-1) = 0; % no OC available, do not include in pie chart
-elseif length(ind) > 0.9*length(species_plot) && length(species_plot) < 100 % There are OC but only a few OC 
-    species_plot(:,end-1) = 0; % Don't include for pie chart
-else
-    species_plot(ind,end) = nan; % there are some OC data, mask out RM when OC not available to avoid non-representive OC-RM ratio
-end
+% ind = find(isnan(species_plot(:, end - 1)) == 1); % OC is not available
+% if length(ind) == size(species_plot,1)
+%     species_plot(:,end-1) = 0; % no OC available, do not include in pie chart
+% elseif length(ind) > 0.9*length(species_plot) && length(species_plot) < 100 % There are OC but only a few OC 
+%     species_plot(:,end-1) = 0; % Don't include for pie chart
+% else
+%     species_plot(ind,end) = nan; % there are some OC data, mask out RM when OC not available to avoid non-representive OC-RM ratio
+% end
+% =============================================
+
+
+
+
 
 % calculate 
 species = mean(species_plot ,1,'omitnan');
@@ -20,7 +27,8 @@ end
 
 if sum(isnan(species)) == 0
 
-    SpecName = {'Water','SO4','NH4','NO3','SS',   'Dust','TEO','BC','OC','OM'};
+    % SpecName = {'Water', 'SO4', 'NH4', 'NO3', 'SS', 'Dust', 'TEO', 'BC', 'OC', 'OM'};
+    SpecName = {'Water', 'SO4', 'NH4', 'NO3', 'SS', 'Dust', 'TEO', 'BC', 'OM'};
     
     % --------------------
     Colors = [ 109,207,246; % water
@@ -31,14 +39,13 @@ if sum(isnan(species)) == 0
         252,238,30; % yellow dust
         128,130,133; % grey TEO
         35,31,32; % black carbon
-        55,98,60; % dark green OC
-        80,184,72; % green residual
+        80, 184, 72; % green residual     % 55, 98, 60; % dark green OC
         ]./255;
 
     % change the order:
-    species = species(:,[8 7 6 5 4 3 2 1 9 10 ]);
-    SpecName = SpecName([8 7 6 5 4 3 2 1 9 10]);
-    Colors = Colors([8 7 6 5 4 3 2 1 9 10],:); % change the order
+    species = species(:,[8 7 6 5 4 3 2 1 9  ]);
+    SpecName = SpecName([8 7 6 5 4 3 2 1 9 ]);
+    Colors = Colors([8 7 6 5 4 3 2 1 9 ],:); % change the order
 
     % 2022-05-15 Haihui: replace negative species (usually OM) by 0
     notes ='';
