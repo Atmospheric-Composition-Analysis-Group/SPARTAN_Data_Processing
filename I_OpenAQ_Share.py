@@ -43,11 +43,12 @@ if __name__ == "__main__":
 
     # Load OpenAQ recieved data
     localtimerecord = f"{direc}/Public_Data/Scripts/UtilityFunctions/Received_by_OpenAQ_localtime.csv"
+    current_date = datetime.now().strftime("%Y-%m-%d") 
     if os.path.exists(localtimerecord):
-        shutil.copy(localtimerecord, f"{direc}/Public_Data/Scripts/UtilityFunctions/Received_by_OpenAQ_localtime_archive.csv")  # make a copy just in case need to repeat
+        shutil.copy(localtimerecord, f"{direc}/Public_Data/Scripts/UtilityFunctions/Received_by_OpenAQ_localtime_archive_{current_date}.csv")  # make a copy just in case need to repeat
         openaq_rec = pd.read_csv(localtimerecord, parse_dates=['datetime_first','datetime_last']) 
 
-    else:
+    else: # do not see local time file, read the original file and conver to local time
         openaq_rec = pd.read_csv(f"{direc}/Public_Data/Scripts/UtilityFunctions/Received_by_OpenAQ.csv", parse_dates=['datetime_first','datetime_last'])  
         # Create a dictionary to map city names to their time zones
         city_to_timezone = dict(zip(site_info['City'], site_info['Time_zone_GMT']))
@@ -81,7 +82,7 @@ if __name__ == "__main__":
             print(f"Error deleting file {file_path}: {e}")
 
 
-    # loop througth site we have to get the time res est PM2.5
+    # loop througth sites to get the time res PM2.5
     for index, row in site_info.iterrows():
         site_code = row['Site_Code']
         site_city = row['City']
@@ -100,9 +101,15 @@ if __name__ == "__main__":
                                                         )  
                 date_last = openaq_rec.loc[openaq_rec['name'].str.contains(site_city), 'datetime_last'].iloc[0]
                 filtered_timeres = timeres[timeres['combined_datetime'] > date_last.tz_convert(None)]
-                filtered_timeres = filtered_timeres.drop('combined_datetime', axis=1)
-                # copy data after to a new file in direct_out
-                filtered_timeres.to_csv(timeres_out, index=False)
+
+                if not filtered_timeres.empty:
+                    date_last_new = filtered_timeres['combined_datetime'].iloc[-1]
+                    # copy data after to a new file in direct_out
+                    filtered_timeres = filtered_timeres.drop('combined_datetime', axis=1) # public data doesn't need the last column 
+                    filtered_timeres.to_csv(timeres_out, index=False)
+                    # update open_aq dataframe:
+                    openaq_rec.loc[openaq_rec['name'].str.contains(site_city), 'datetime_last'] = date_last_new 
+                    openaq_rec.loc[openaq_rec['name'].str.contains(site_city), 'datetime_first'] = date_last # previous last become the new first
                 
             # if site not in openaq dataset, add the entire file to direct_out and add info to openaq_rec
             else:    
@@ -119,10 +126,10 @@ if __name__ == "__main__":
                 }
                 new_row_df = pd.DataFrame([new_row])
                 df = pd.concat([openaq_rec, new_row_df], ignore_index=True)   
-                # Save the openaq_rec for future use
-                openaq_rec.to_csv(localtimerecord, index=False)
                 
-            # change file permission # doesn't seem to work
-            os.chmod(timeres_out, 0o644)
-            
+            # # change file permission # doesn't seem to work
+            # os.chmod(timeres_out, 0o644)
+    
+    # Save the openaq_rec for future use
+    openaq_rec.to_csv(localtimerecord, index=False)
     print('Done')
