@@ -84,6 +84,9 @@ DataVersion = 'Data version 2.4'; % will be in the first line of the public file
 % Setup directories 
 debug_mode = 0;
 direc = find_root_dir(debug_mode);
+pie_bycartridge = 0; % This allow bad data pass to the public files. 
+                     % After running with this = 1, need to turn it to 0 and 
+                     % run again!!!!
 
 direc_master = strcat(direc,'/Analysis_Data/Master_files');
 direc_output =  strcat(direc,'/Public_Data');
@@ -109,6 +112,8 @@ PMc_parameters  = readtable(Sampling_Parameters_Methods,'Sheet','PMc','PreserveV
 RCFM_parameters = readtable(Sampling_Parameters_Methods,'Sheet','PM2.5 RCFM','PreserveVariableNames',true);
 
 Flag_parameters = readtable(Sampling_Parameters_Methods,'Sheet','Flags','PreserveVariableNames',true);
+
+water_content = readtable(Sampling_Parameters_Methods, 'Sheet', 'Water_content', "Range", "A1:D2", 'PreserveVariableNames', true );
 
 site_details = readtable(strcat(direc,'/Site_Sampling/Site_details.xlsx'),'PreserveVariableNames',true);
 Site_codes = table2array(site_details(:,1));
@@ -160,15 +165,15 @@ BadNa = table2array(readtable(BadNa,opts));
 
 %% Read master files and process public files %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  for loc =  1:numel(Site_codes)
-%  for loc =  find(ismember(Site_codes,'CHTS'))
-    %% Read Master Files
+%  for loc =  find(ismember(Site_codes,'BIBU'))
+    %% Read Master Files & IC_MDL files
     master_file = sprintf('%s/%s_master.csv',direc_master,Site_codes{loc});
     [Titles,Master_IDs,   Master_Barcodes, Master_CartridgeIDs, Master_LotIDs, Master_projectIDs,  Master_hours,  Master_masstype, ...
             Master_dates, Master_mass,     Master_IC,           Master_ICP,    Master_XRF,...
             Master_carbon, Mater_Nylon,    Master_Method,       Master_flags] = ReadMaster(master_file, Site_codes{loc});
     
     Vol_Col = 2; % 2nd col in mass matrix is volume
-    IC_title = Titles(contains(Titles,'IC_')); 
+    IC_title = Titles(contains(Titles, 'IC_') & endsWith(Titles, '_T')); % use teflon filter for now
     ICP_title = Titles(contains(Titles,'ICP_')); 
     XRF_title = Titles(contains(Titles,'XRF_')); 
 
@@ -219,52 +224,59 @@ BadNa = table2array(readtable(BadNa,opts));
 %     end
 
     %% Data validation step 2: Exclude bad filters or filter with invalid sampling hour, method, or volume
-    Ind = find(contains(Master_flags,{'Need to be excluded'})==1);
-    if ~isempty(Ind)
-        fprintf('Following filters excluded for public files as indicated by filter flags:\n')
-        disp(Master_IDs(Ind))
+    if pie_bycartridge == 0 % when doing the special pie charts, do not exclude the bad filters
+        Ind = find(contains(Master_flags,{'Need to be excluded'})==1);
+        if ~isempty(Ind)
+            fprintf('Following filters excluded for public files as indicated by filter flags:\n')
+            disp(Master_IDs(Ind))
 
-          [ Master_IDs, Master_Barcodes, Master_CartridgeIDs, Master_LotIDs, Master_projectIDs,...
-            Master_hours, Master_masstype, Master_dates, Master_mass, Master_IC, ...
-            Master_ICP, Master_XRF, Master_carbon, Master_Method, Master_flags] = ...
-            RemoveRows (Ind, ...
-            Master_IDs, Master_Barcodes, Master_CartridgeIDs, Master_LotIDs, Master_projectIDs,...
-            Master_hours, Master_masstype, Master_dates, Master_mass, Master_IC, ...
-            Master_ICP, Master_XRF, Master_carbon, Master_Method, Master_flags);
+            [ Master_IDs, Master_Barcodes, Master_CartridgeIDs, Master_LotIDs, Master_projectIDs,...
+                Master_hours, Master_masstype, Master_dates, Master_mass, Master_IC, ...
+                Master_ICP, Master_XRF, Master_carbon, Master_Method, Master_flags] = ...
+                RemoveRows (Ind, ...
+                Master_IDs, Master_Barcodes, Master_CartridgeIDs, Master_LotIDs, Master_projectIDs,...
+                Master_hours, Master_masstype, Master_dates, Master_mass, Master_IC, ...
+                Master_ICP, Master_XRF, Master_carbon, Master_Method, Master_flags);
+        end
+
+        % find valid cols: vol exist and sampled hr ~=0
+        vol_idx = find(Master_mass(:,Vol_Col) ~= 0 & ~isnan(Master_mass(:,Vol_Col)) & Master_hours ~=0 & ~isnan(Master_hours));
+        
+        [Master_IDs,   Master_Barcodes,   Master_CartridgeIDs, Master_LotIDs,       Master_projectIDs, ...
+        Master_hours, Master_masstype,   Master_dates,        Master_mass,   Master_IC,    ...
+        Master_ICP,   Master_XRF,        Master_carbon,       Master_Method, Master_flags]...
+        = SortData (vol_idx,...
+        Master_IDs,   Master_Barcodes,   Master_CartridgeIDs, Master_LotIDs,       Master_projectIDs, ...
+        Master_hours, Master_masstype,   Master_dates,        Master_mass,   Master_IC,    ...
+        Master_ICP,   Master_XRF,        Master_carbon,       Master_Method, Master_flags);
+
+        clear vol_idx
+
+        % remove method is NaN (SSe_ID is NaN, refer to script B)
+        non_nan_idx = find(~isnan(Master_Method(:,1)));
+    
+        [Master_IDs,   Master_Barcodes,   Master_CartridgeIDs, Master_LotIDs,       Master_projectIDs, ...
+        Master_hours, Master_masstype,   Master_dates,        Master_mass,   Master_IC,    ...
+        Master_ICP,   Master_XRF,        Master_carbon,       Master_Method, Master_flags]...
+        = SortData (non_nan_idx,...
+        Master_IDs,   Master_Barcodes,   Master_CartridgeIDs, Master_LotIDs,       Master_projectIDs, ...
+        Master_hours, Master_masstype,   Master_dates,        Master_mass,   Master_IC,    ...
+        Master_ICP,   Master_XRF,        Master_carbon,       Master_Method, Master_flags);
+
+        clear non_nan_idx
     end
-
-    % find valid cols: vol exist and sampled hr ~=0
-    vol_idx = find(Master_mass(:,Vol_Col) ~= 0 & ~isnan(Master_mass(:,Vol_Col)) & Master_hours ~=0 & ~isnan(Master_hours));
-     
-    [Master_IDs,   Master_Barcodes,   Master_CartridgeIDs, Master_LotIDs,       Master_projectIDs, ...
-    Master_hours, Master_masstype,   Master_dates,        Master_mass,   Master_IC,    ...
-    Master_ICP,   Master_XRF,        Master_carbon,       Master_Method, Master_flags]...
-     = SortData (vol_idx,...
-    Master_IDs,   Master_Barcodes,   Master_CartridgeIDs, Master_LotIDs,       Master_projectIDs, ...
-    Master_hours, Master_masstype,   Master_dates,        Master_mass,   Master_IC,    ...
-    Master_ICP,   Master_XRF,        Master_carbon,       Master_Method, Master_flags);
-
-    clear vol_idx
-
-    % remove method is NaN (SSe_ID is NaN, refer to script B)
-    non_nan_idx = find(~isnan(Master_Method(:,1)));
- 
-    [Master_IDs,   Master_Barcodes,   Master_CartridgeIDs, Master_LotIDs,       Master_projectIDs, ...
-    Master_hours, Master_masstype,   Master_dates,        Master_mass,   Master_IC,    ...
-    Master_ICP,   Master_XRF,        Master_carbon,       Master_Method, Master_flags]...
-     = SortData (non_nan_idx,...
-    Master_IDs,   Master_Barcodes,   Master_CartridgeIDs, Master_LotIDs,       Master_projectIDs, ...
-    Master_hours, Master_masstype,   Master_dates,        Master_mass,   Master_IC,    ...
-    Master_ICP,   Master_XRF,        Master_carbon,       Master_Method, Master_flags);
-
-    clear non_nan_idx
+    
 
     %% Data validation step 3: Calculate BC when HIPS-BC not available
     %  Set SSR Bc = -899 to NaN, set negative BC to 0.
     Master_carbon(Master_carbon(:,1) == -899,1) = NaN;
     Master_carbon(Master_carbon(:,1) < 0, 1) = 0; % set any negative BC to zero due to using blank R in calculation [rare]
     
-    Ind = find( isnan(Master_carbon(:,2)) &  Master_masstype<3 & Master_carbon(:,1)>0); % HIPS not available & Teflon filters & SSR-BC available
+    if pie_bycartridge == 1
+        Ind = find(isnan(Master_carbon(:, 2)) & Master_carbon(:, 1) > 0); % HIPS not available & Teflon filters & SSR-BC available
+    else
+        Ind = find( isnan(Master_carbon(:,2)) &  Master_masstype < 3 & Master_carbon(:,1)>0); % HIPS not available & Teflon filters & SSR-BC available
+    end
     HIPS_Mesured_BC(loc,1) = sum(~isnan(Master_carbon(:,2)));
     HIPS_Est_BC (loc,1)    = length(Ind);
     % apply the curve:
@@ -408,7 +420,7 @@ BadNa = table2array(readtable(BadNa,opts));
     Public_data(:,13:end-2) = round(Public_data(:,13:end-2)*1000,2); % convert trace elements back to nanograms/m3 and round to one digit after the decimal (at ~ line 219 it was converted from ng to ug)
     
     % Titles for the public data:
-    Title_public = {'PM25','IC_SO4_ug','IC_NO3_ug','IC_NH4_ug','BC_ug','IC_Na_ug','IC_PO4_ug','IC_NO2_ug','IC_Br_ug','IC_K_ug','IC_Mg_ng','IC_Ca_ug'};
+    Title_public = {'PM25','IC_SO4_ug_T','IC_NO3_ug_T','IC_NH4_ug_T','BC_ug','IC_Na_ug_T','IC_PO4_ug_T','IC_NO2_ug_T','IC_Br_ug_T','IC_K_ug_T','IC_Mg_ng_T','IC_Ca_ug_T'};
     % column 13 to later will change if there is change in columns in master file
     Title_public(end+1:end+length(ICP_title)) = ICP_title;
     Title_public(end+1:end+length(XRF_title)) = XRF_title;
@@ -418,7 +430,13 @@ BadNa = table2array(readtable(BadNa,opts));
     %% Formating: Sort into PM2.5, PMcoarse, PM10, and PMc 
     
     % index for mass types
-    PM25_index = find(Master_masstype(:,1) == 1);
+    if pie_bycartridge == 0
+        PM25_index = find(Master_masstype(:,1) == 1);
+    else
+        % when making pie chart for special cartridges, PM25 filters with
+        % bad flow rate are also included.
+        PM25_index = find(Master_masstype(:,1) == 1 | Master_masstype(:,1) == 6); 
+    end
     blank_index = find(Master_masstype(:,1) == 0);
     PM10_index = find(Master_masstype(:,1) == 2);
     PMc_index = find(Master_masstype(:,1) == 3);
@@ -466,6 +484,7 @@ BadNa = table2array(readtable(BadNa,opts));
     end
     
     clear Public_data
+
     
     %% Write to public file 1: XXXX_speciation.csv
     % components contained in PM25_data_public matrix for searching the parameters sheet
@@ -914,11 +933,11 @@ BadNa = table2array(readtable(BadNa,opts));
      temp = NaN.*PM25_hours;
     [PM25_labels, PM25_Barcodes,PM25_cartridgeIDs, PM25_LotIDs, PM25_projectIDs,...
      PM25_hours,  PM25_dates,   PM25_flags,  PM25_data_public,  ...
-     ~,  ~,    ~,     ~,   ~,    ~ ] = ...
+     PM25_ICP,  PM25_Mass,    PM25_masstype,     PM25_Method,   PM25_XRF,    PM25_IC ] = ...
      RemoveRows (missing_PM25, ...
      PM25_labels, PM25_Barcodes,PM25_cartridgeIDs, PM25_LotIDs, PM25_projectIDs,...
      PM25_hours,  PM25_dates,   PM25_flags,  PM25_data_public, ...
-     temp, temp, temp, temp, temp, temp );
+     PM25_ICP, PM25_Mass, PM25_masstype, PM25_Method, PM25_XRF, PM25_IC );
 
            % Species  = [ASO4 NH4NO3 RM   OC NaCl Soil BC  TEO  Na2SO4]
               kappa   = [0.61 0.61 0.10 0.10 1.5  0.01 0.01 0.01 0.68];   % GC: need to double check 
@@ -930,7 +949,7 @@ BadNa = table2array(readtable(BadNa,opts));
 
     % ==== Na2SO4 (sea-salt associated sulfate) ====
     NaSO4_dry=0.18.*PM25_data_public(:,6); % 0.18*[Na+]
-    NaSO4_wet=NaSO4_dry*MGrowth(8);
+    NaSO4_wet=NaSO4_dry * (1 + 46/142*water_content.SS + 96/142*water_content.Inorganics); % using weighted mean of Na and SO4 when estimating additional water
     
      % === ANO3 ====
     ANO3_dry = nan(size(PM25_data_public,1),1);
@@ -940,7 +959,7 @@ BadNa = table2array(readtable(BadNa,opts));
     ANO3_dry(~Ind) = sum(PM25_data_public(~Ind,[3 4]),2,'omitnan');  % [ANO3(dry)]= [NH4] + [NO3]
     % mask out when both NH4 and NO3 are NaN
     ANO3_dry(sum(isnan(PM25_data_public(:,[3 4])),2)==2) = NaN;
-    ANO3_wet=ANO3_dry*MGrowth(2);
+    ANO3_wet=ANO3_dry* (1+water_content.Inorganics);
     
     % ==== ASO4 ====
     SO4inNaSO4 = 0.12*PM25_data_public(:,6); % "0.12" factor from Henning et al 2003 JGR 108(D1) pp4030, doi:10.1029/2002JD002439
@@ -952,7 +971,7 @@ BadNa = table2array(readtable(BadNa,opts));
     NH4_remain = sum([PM25_data_public(:,4) -0.29*PM25_data_public(:,3)],2,'omitnan'); % remaining NH4 after bonded with NIT; if no NO3 (NaN value means did not pass QA/QC), will give NaN
     NH4_remain(NH4_remain<0) = 0; % remaining NH4 should never be negative. In a NIT exceeding event, HNO3 exist.
     ASO4_dry = SO4_NSS+NH4_remain; % low NIT condition, SO4 exists as (NH4)2SO4; high NIT condition, it can be NH4HSO4 or even H2SO4.
-    ASO4_wet = ASO4_dry*MGrowth(1); 
+    ASO4_wet = ASO4_dry * (1+water_content.Inorganics); 
     clear NH4_remain
     
     % ==== Sea Salt ====
@@ -969,7 +988,7 @@ BadNa = table2array(readtable(BadNa,opts));
     clear i
     SSalt_dry(SSalt_dry<-0.3)=NaN;  % nan out if too negative
 
-    SSalt_wet = SSalt_dry*MGrowth(4);
+    SSalt_wet = SSalt_dry * (1+water_content.SS);
      
     % ==== Dust & TEO ====
     % if XRF data available, define soil (aka mineral dust) by combination of {Al, Si, Ca, Ti, Fe} following Xuan Liu's eqn:
@@ -1041,22 +1060,29 @@ BadNa = table2array(readtable(BadNa,opts));
         fprintf('There are %d filters out of %d that do not have metal data \n',no_metals, size(PM25_data_public,1))
     end
     clear no_metals
+    
     % ==== BC ====
 %     BC = PM25_data_public(:,5); % non-hygroscopic
     BC = PM25_data_public(:,5)*0.06./0.1; % assume sigma 0.06 is too low. scale to sigma = 0.10
 
+    % ==== water in K ====
+    % assuming K in PM2.5 is from either crustal material (soil/dust) or biomass burning
+    % this part only calculate additional water that is introduced by K
+    K_dry = PM25_data_public(:,ismember(Title_public,'IC_K_ug_T')) ;
+    K_wet = K_dry * (1+water_content.Inorganics);
+
     % ==== OC ====
     % Need to convert to OM?
     OC_dry = PM25_data_public(:,end-1); % FTIR
-    OC_wet = OC_dry.*MGrowth(3);
+    OC_wet = OC_dry .* (1 + water_content.RM); 
    
     % ==== RESIDUAL MASS (Organic Matter) ====
-    merged_data_wet = [PM25_data_public(:,1) ASO4_wet ANO3_wet SSalt_wet Soil BC OC_wet TEO NaSO4_wet];
+    merged_data_wet = [PM25_data_public(:,1) ASO4_wet ANO3_wet SSalt_wet Soil BC OC_wet TEO NaSO4_wet K_wet];
     colmask = any(isnan(merged_data_wet(:,[1 2 3 5])),2); % if any of [ASO4_wet ANO3_wet Soil] is nan, do not calculate RM
     
     RM_wet=merged_data_wet(:,1)-nansum(merged_data_wet(:,2:end),2);
     RM_wet(colmask == 1) = NaN; % if missing input inorganic, do not calculate RM
-    RM_dry=RM_wet./MGrowth(3); % Dry residual matter
+    RM_dry=RM_wet./(1+water_content.RM); % Dry residual matter
     
     Too_neg_OM=find(RM_wet./merged_data_wet(:,1)<-0.1); % set to NaN if negative by more than 10% of total wet (35% RH) PM2.5 mass
     RM_dry(Too_neg_OM,1)=NaN;
@@ -1065,7 +1091,7 @@ BadNa = table2array(readtable(BadNa,opts));
     
     % ==== PBW ====
     % PBW = particle-bound water (mass conc., ug/m3) [currently not reported in RCFM files]
-    PBW = sum( [ ASO4_wet -ASO4_dry ANO3_wet -ANO3_dry RM_wet -RM_dry OC_wet -OC_dry SSalt_wet -SSalt_dry NaSO4_wet -NaSO4_dry ] ,2,'omitnan');
+    PBW = sum( [ ASO4_wet -ASO4_dry ANO3_wet -ANO3_dry RM_wet -RM_dry OC_wet -OC_dry SSalt_wet -SSalt_dry NaSO4_wet -NaSO4_dry K_wet -K_dry] ,2,'omitnan');
     
     % ==== Kappa mix ====
     % dry volume
@@ -1220,25 +1246,30 @@ BadNa = table2array(readtable(BadNa,opts));
     end
     fclose(fileID);
 
+
     %% Figure 1: Time series of cartridge average and site average PM2.5 for website
-    PM25filter_timeseries(PM25_Mass(:,1), PM25_dates, Site_cities, Site_codes, direc_output,loc)
+    if pie_bycartridge  == 0
+        PM25filter_timeseries(PM25_Mass(:,1), PM25_dates, Site_cities, Site_codes, direc_output,loc)
 
-    species_plot = [PBW PM25_data_public(:,[2 4 3 6])  Soil TEO BC OC_dry RM_dry]; % order: {'water' 'SO4','NH4','NO3','SS','Dust','TEO','BC','OC','RM'};
+        species_plot = [PBW PM25_data_public(:,[2 4 3 6])  Soil TEO BC OC_dry RM_dry]; % order: {'water' 'SO4','NH4','NO3','SS','Dust','TEO','BC','OC','RM'};
+
+        % calculate reportable data for later use
+        tSiteDataNum(loc,1) = sum(~isnan(PM25_data_public(:,1)));
+        tSiteDataNum(loc,2:end) = sum(~isnan(species_plot));
+
+    %% Figure 2: Bar chart - all data with dates or filter IDs as labels
+        dates = datenum(PM25_dates(:,5), PM25_dates(:,6), PM25_dates(:,7),0,0,0);
+        x_dates = char(datetime(dates,'ConvertFrom','datenum', 'Format','MM-dd-yyyy'));
+        Spec_barplot(species_plot,x_dates,PM25_labels,Site_cities,Site_codes,loc,direc_output);
+
+
+    %% Figure 3: Bar chart - most recent and complete data for website
+        Spec_barplot_website(PM25_dates, Site_codes, direc_output,loc, species_plot)
+    end
+
+    rm_new = sum([OC_dry RM_dry],2,'omitnan');
+    species_plot = [PBW PM25_data_public(:, [2 4 3 6]) Soil TEO BC rm_new]; % order: {'water' 'SO4', 'NH4', 'NO3', 'SS', 'Dust', 'TEO', 'BC', 'RM'};
     
-    % calculate reportable data for later use
-    tSiteDataNum(loc,1) = sum(~isnan(PM25_data_public(:,1)));
-    tSiteDataNum(loc,2:end) = sum(~isnan(species_plot));
-       
-    %% Figure 2: Bar chart - all data with dates or filter IDs as labels  
-    dates = datenum(PM25_dates(:,5), PM25_dates(:,6), PM25_dates(:,7),0,0,0);
-    x_dates = char(datetime(dates,'ConvertFrom','datenum', 'Format','MM-dd-yyyy'));
-    Spec_barplot(species_plot,x_dates,PM25_labels,Site_cities,Site_codes,loc,direc_output);
-
-    
-    %% Figure 3: Bar chart - most recent and complete data for website   
-    Spec_barplot_website(PM25_dates, Site_codes, direc_output,loc, species_plot)
-     
-
     %% Figure 4: RCFM Pie chart
     PM25_total = mean(PM25_data_public(:,1),'omitnan');
     % if there is a missing species (all NaNs in one species), no pie will be made.
@@ -1256,9 +1287,9 @@ BadNa = table2array(readtable(BadNa,opts));
         NH4 = PM25_data_public(:,4);
         NO3 = PM25_data_public(:,3);
         Na = PM25_data_public(:,6);
-        Cl =  PM25_IC(:,contains(IC_title,'IC_Cl'));
-        K  =  PM25_IC(:,contains(IC_title,'IC_K'));
-        savedata_dry(PM25_labels, PM25, BC, TEO, Soil, Na, NO3, NH4, SO4, PBW, OC_dry, RM_dry, Cl,K, fname)
+        Cl =  PM25_IC(:,contains(IC_title,'IC_Cl_ug_T'));
+        K  =  PM25_IC(:,contains(IC_title,'IC_K_ug_T'));
+        savedata_dry(PM25_labels, PM25, BC, TEO, Soil, Na, NO3, NH4, SO4, PBW, rm_new, Cl, K, fname)
         clear PM25 SO4 NH4 NO3 Na Cl
     end
 
@@ -1267,8 +1298,8 @@ BadNa = table2array(readtable(BadNa,opts));
 
     PM25_total = mean(PM25_data_public(ind,1),'omitnan');
 
-    Cl =  mean(PM25_IC(ind,contains(IC_title,'IC_Cl')),'omitnan');
-    K =  mean(PM25_IC(ind,contains(IC_title,'IC_K')),'omitnan');
+    Cl =  mean(PM25_IC(ind,contains(IC_title,'IC_Cl_ug_T')),'omitnan');
+    K =  mean(PM25_IC(ind,contains(IC_title,'IC_K_ug_T')),'omitnan');
 
     Pie_made = PM25_RCFMavg_pie_with_Cl(PM25_total, species_plot(ind,:), Cl,K, Site_cities,loc); % function for making pie chart
     if Pie_made == 1
@@ -1285,13 +1316,50 @@ BadNa = table2array(readtable(BadNa,opts));
         NH4 = PM25_data_public(ind,4);
         NO3 = PM25_data_public(ind,3);
         Na = PM25_data_public(ind,6);
-        Cl =  PM25_IC(ind,contains(IC_title,'IC_Cl'));
-        K  =  PM25_IC(ind,contains(IC_title,'IC_K'));
-        savedata_dry(PM25_labels(ind,:), PM25, BC(ind,:), TEO(ind,:), Soil(ind,:), Na, NO3, NH4, SO4, PBW(ind,:), OC_dry(ind,:), RM_dry(ind,:),Cl,K,fname)
+        Cl =  PM25_IC(ind,contains(IC_title,'IC_Cl_ug_T'));
+        K  =  PM25_IC(ind,contains(IC_title,'IC_K_ug_T'));
+        savedata_dry(PM25_labels(ind, :), PM25, BC(ind, :), TEO(ind, :), Soil(ind, :), Na, NO3, NH4, SO4, PBW(ind, :), rm_new(ind, :), Cl, K, fname)
         clear PM25 SO4 NH4 NO3 Na Cl
     end
 
-    
+    %% Figure 6: RCFM Pie chart for specific cartridges
+    if pie_bycartridge == 1
+        fname = sprintf('%s/Public_Data/Chemical_Filter_Data/Plots/Pie_spec_plots/ByCartridge/Cartridges_need_pie_charts.xlsx', direc);
+        sheets = sheetnames(fname);
+        if sum(ismember(sheets, Site_codes{loc}))==1
+            cartr = readtable(fname,'sheet',Site_codes{loc});
+            
+            ind = find(ismember(PM25_cartridgeIDs, cartr.Cartridge_ID)==1);
+
+            PM25_total = mean(PM25_data_public(ind, 1), 'omitnan');
+
+            Cl = mean(PM25_IC(ind, contains(IC_title, 'IC_Cl_ug_T')), 'omitnan');
+            K = mean(PM25_IC(ind, contains(IC_title, 'IC_K_ug_T')), 'omitnan');
+
+            Pie_made = PM25_RCFMavg_pie_with_Cl(PM25_total, species_plot(ind, :), Cl, K, Site_cities, loc); % function for making pie chart
+
+            if Pie_made == 1
+                % save figure
+                savedir = sfmkdir(sprintf('%s/Public_Data/Chemical_Filter_Data/Plots/Pie_spec_plots/ByCartridge', direc));
+                fname = sprintf('%s/%s_PM25_RCFMavg', savedir, Site_codes{loc});
+                saveas(gcf, sprintf('%s.png', fname))
+                print(sprintf('%s.eps', fname), '-depsc')
+                close all
+
+                % save data to a xlsx
+                PM25 = PM25_data_public(ind, 1);
+                SO4 = PM25_data_public(ind, 2);
+                NH4 = PM25_data_public(ind, 4);
+                NO3 = PM25_data_public(ind, 3);
+                Na = PM25_data_public(ind, 6);
+                Cl = PM25_IC(ind, contains(IC_title, 'IC_Cl_ug_T'));
+                K = PM25_IC(ind, contains(IC_title, 'IC_K_ug_T'));
+                savedata_dry(PM25_labels(ind, :), PM25, BC(ind, :), TEO(ind, :), Soil(ind, :), Na, NO3, NH4, SO4, PBW(ind, :), rm_new(ind, :), Cl, K, fname)
+                clear PM25 SO4 NH4 NO3 Na Cl
+            end
+        end
+    end
+
     %%
     close all
     clear *_dry *_wet BC *_index  colmask nan_idx  Titles  RFM_* Master_* SO4_NSS Soil SSalt_water start_date end_date TEO  Vol_mix 
@@ -1325,8 +1393,8 @@ function savedata_wet(PM25_labels, PM25, BC, TEO, Soil, ANO3_wet, ASO4_wet, NaSO
         writetable(T,tablename,'Sheet','wet')
 end
 
-function savedata_dry(PM25_labels, PM25, BC, TEO, Soil, Na, NO3, NH4, SO4, PBW, OC_dry, RM_dry,Cl,K,fname) 
-        T = table(PM25_labels, PM25, BC, TEO, Soil, Na, NO3, NH4, SO4, PBW,Cl, K, OC_dry, RM_dry);
+function savedata_dry(PM25_labels, PM25, BC, TEO, Soil, Na, NO3, NH4, SO4, PBW, RM_dry,Cl,K,fname) 
+        T = table(PM25_labels, PM25, BC, TEO, Soil, Na, NO3, NH4, SO4, PBW,Cl, K, RM_dry);
         tablename = sprintf('%s.xlsx',fname);
         delete(tablename) % delete existing file 
         writetable(T,tablename,'Sheet','dry')
