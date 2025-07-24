@@ -52,7 +52,7 @@ direc_master = os.path.join(direc, 'Analysis_Data', 'Master_files')
 direc_output = os.path.join(direc, 'Public_Data')
 log_file_path = os.path.join(direc, 'Public_Data/Data_Processing_Records/Master_File',
                                 datetime.now().strftime('%Y-%m-%d-%H%MSS') + '_MasterFile_Processing_Record.log')
-Sampling_Parameters_Methods = os.path.join('release_test/Sampling_Parameters_Methods_2.4.xlsx')
+Sampling_Parameters_Methods = os.path.join(direc,'SOPs/Public SOPs/Sampling_Parameters_Methods_2.4.xlsx')
 
 # # TEST 
 # direc_master = os.path.join('release_test', 'Master_files')
@@ -337,7 +337,15 @@ for idx, site in enumerate(site_details['Site_Code']):
                     (PM25_IC_para['Collection Description'].str.contains('Teflon')) &
                     (PM25_IC_para['Sampling Mode'] == sam_mode) 
                 ]
-                method_params = PM25_IC_para.iloc[method_idx]
+                if not method_params.empty and sam_mode == 'SPARTAN':
+                    method_params = method_params.iloc[method_idx] 
+                    
+                elif not method_params.empty and sam_mode == 'MAIA':
+                    method_params = method_params.iloc[0]
+                else:
+                    id = row['FilterID']
+                    logging.error('cannot find method for {id}, exiting')
+                    exit()
             
             elif component == 'Nitrate':
                 if nylon_exist:
@@ -359,9 +367,18 @@ for idx, site in enumerate(site_details['Site_Code']):
                         (PM25_IC_para['Collection Description'].str.contains('Teflon')) &
                         (PM25_IC_para['Sampling Mode'] == sam_mode) 
                     ]
-                    method_params = PM25_IC_para.iloc[method_idx]
+                    if not method_params.empty and sam_mode == 'SPARTAN':
+                        method_params = method_params.iloc[method_idx] 
+                        
+                    elif not method_params.empty and sam_mode == 'MAIA':
+                        method_params = method_params.iloc[0]
+                    else:
+                        id = row['FilterID']
+                        logging.error('cannot find method for {id}, exiting')
+                        exit()
         
             elif component == 'Ammonium':
+                
                 if nylon_exist:
                     rcfm[component] = row['IC_NH4_ug_T'] + row['IC_NH4_ug_N']*0.29
                     
@@ -378,8 +395,16 @@ for idx, site in enumerate(site_details['Site_Code']):
                         (PM25_IC_para['Collection Description'].str.contains('Teflon')) &
                         (PM25_IC_para['Sampling Mode'] == sam_mode) 
                     ]
-                    method_params = PM25_IC_para.iloc[method_idx] 
-                 
+                    if not method_params.empty and sam_mode == 'SPARTAN':
+                        method_params = method_params.iloc[method_idx] 
+                        
+                    elif not method_params.empty and sam_mode == 'MAIA':
+                        method_params = method_params.iloc[0]
+                    else:
+                        id = row['FilterID']
+                        logging.error('cannot find method for {id}, exiting')
+                        exit()
+                
             elif component == 'Sea Salt':
                 # Sea salt(dry) = (2.54*[Na+] - 0.1[Al]) or (1.65[Cl] - 0.1[Al])
                 

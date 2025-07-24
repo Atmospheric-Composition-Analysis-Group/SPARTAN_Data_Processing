@@ -81,19 +81,22 @@ def find_lot_cart(filter_IDs, Sum_lots):
     return site_lotIDs, site_cartridgeIDs
 
 def check_and_fill(existing_table, var, idx_massfile, new_value, filterID, replace_warning):
-    tcolumn = existing_table[var].values
+    old_value = existing_table.at[idx_massfile, var]
 
+    # If new_value is numeric (int or float)
     if isinstance(new_value, (int, float)):
-        if not np.isnan(new_value) and tcolumn[idx_massfile] != new_value:
-            tcolumn[idx_massfile] = new_value
+        if not np.isnan(new_value) and old_value != new_value:
+            existing_table.at[idx_massfile, var] = new_value
             if replace_warning == 1:
-                logging.info(f'{filterID} {var} old value {tcolumn[idx_massfile]} replaced with {new_value}\n')
-
-    else:  # not a double format => filter info 
-        tcolumn[idx_massfile] = new_value[0]
-        
-    existing_table[var] = tcolumn
-
+                logging.info(f'{filterID} {var} old value {old_value} replaced with {new_value}')
+    
+    else:  # Assume it's a string or object
+        # Don't update if old value is already informative (i.e., not 'U' or NaN)
+        if pd.isna(old_value) or old_value in ['U', '1']:
+            existing_table.at[idx_massfile, var] = new_value
+            if replace_warning == 1:
+                logging.info(f'{filterID} {var} old value {old_value} replaced with {new_value}')
+    
     return existing_table
 
 # Function to find the cell containing a specific string
@@ -139,7 +142,9 @@ for data_file in files:
     # Read filter mass
     locations = find_string_in_df(all_data, 'Position')
     filter_data_raw = pd.read_excel(filename,skiprows=locations[0][0] )
-    filter_data_raw = filter_data_raw.iloc[3:11, 0:14]
+    # Filter rows where 'Position' starts with 'Phase #'
+    filter_data_raw = filter_data_raw[filter_data_raw['Position'].fillna('').str.startswith('Phase #')]
+    filter_data_raw = filter_data_raw.iloc[:8, :]
     filter_data_raw['Pretest Standard Deviation'] = pd.to_numeric(filter_data_raw['Pretest Standard Deviation'], errors='coerce').round(2)
     filter_data_raw['Posttest Standard Deviation'] = pd.to_numeric(filter_data_raw['Posttest Standard Deviation'], errors='coerce').round(2)
     raw_titles = filter_data_raw.columns.tolist()

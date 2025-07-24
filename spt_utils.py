@@ -111,6 +111,11 @@ def filter_id_format(filter_ids):
     return new_filter_ids
 
 def add_flag(orig_flags, new_flag):
+    
+    # Convert NaN (float) to empty string
+    if isinstance(orig_flags, float) and np.isnan(orig_flags):
+        orig_flags = ''
+
     # remove leading and trailing blank
     orig_flags = orig_flags.strip()
 

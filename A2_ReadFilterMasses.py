@@ -131,7 +131,7 @@ for idx, site in enumerate(site_details['Site_Code']):
                 lotid = master_data.loc[filter_mask_master, 'LotID'].values[0]
                 
                 # for negative data below threshold, label mass as nan, mass_type as 5.
-                if mass < neg_threshold and mass_type == np.nan:
+                if mass < neg_threshold and pd.isna(mass_type):
                     # for such filters, mass_type is either nan or 5. 
                     # if nan, label as 5 (invalid measurement)
                     mass_type = 5

@@ -287,9 +287,39 @@ def update_flag(tflag, newstr):
         udpatedflag = '; '.join(udpatedflag)
     return udpatedflag
     
+
+
+
     
+def add_entry(master_data, filter,  mass, mass_type, sampling_mode, barcode, cartid, lotid):
+    if filter in master_data['FilterID'].values:
+        mask = master_data['FilterID'] == filter
+        master_data.loc[mask, 'mass_ug'] = mass
+        master_data.loc[mask, 'Filter_Barcode'] = barcode
+        master_data.loc[mask, 'CartridgeID'] = cartid
+        master_data.loc[mask, 'LotID'] = lotid
+        master_data.loc[mask, 'projectID'] = sampling_mode
+        master_data.loc[mask, 'Mass_type'] = mass_type
+        
+    else:
+        # Create template for new row with type-appropriate defaults
+        new_row = {col:  np.nan for col in master_data.columns}
+        
+        master_data = pd.concat(
+            [master_data, pd.DataFrame([new_row])],
+            ignore_index=True
+        )
+     
+        master_data.iloc[-1, master_data.columns.get_loc('FilterID')] = filter
+        master_data.iloc[-1, master_data.columns.get_loc('mass_ug')] = mass
+        master_data.iloc[-1, master_data.columns.get_loc('Filter_Barcode')] = barcode
+        master_data.iloc[-1, master_data.columns.get_loc('CartridgeID')] = cartid
+        master_data.iloc[-1, master_data.columns.get_loc('LotID')] = lotid
+        master_data.iloc[-1, master_data.columns.get_loc('projectID')] = sampling_mode
+        master_data.iloc[-1, master_data.columns.get_loc('Mass_type')] = mass_type
     
-    
+    return master_data   
+       
 # ============================
 # Start processing 
 # ============================
@@ -485,6 +515,15 @@ for file in files:
                 nylon_filters = nylon_samples['FilterID'].unique()
                 updatedflag = update_flag(tflag, '-T')
                 for nidx in nylon_filters:
+                    # Ensure FilterID exists in master_data
+                    # If not, add a new entry with NaN mass and empty fields
+                    # This is to ensure that we do not miss any FilterID in the master file
+                    if nidx not in master_data['FilterID'].values:
+                        print(f"[INFO] Adding missing FilterID: {nidx}")
+                        master_data = add_entry(master_data, nidx, mass=np.nan, mass_type=np.nan, sampling_mode=np.nan,
+                                                barcode=np.nan, cartid=np.nan, lotid=np.nan) #Script D just adds filterID, other data is added by A2 and B
+
+                
                     master_data.loc[master_data['FilterID']==nidx, 'Flags'] = su.add_flag(master_data.loc[master_data['FilterID']==nidx, 'Flags'].values[0], updatedflag)
                 
 
@@ -520,8 +559,16 @@ for file in files:
                 teflon_filters = teflon_samples['FilterID'].unique()
                 updatedflag = update_flag(tflag, '-T')
                 for tidx in teflon_filters:
+                    if tidx not in master_data['FilterID'].values:
+                        print(f"[INFO] Adding missing FilterID: {tidx}")
+                        master_data = add_entry(master_data, tidx, mass=np.nan, mass_type=np.nan, sampling_mode=np.nan,
+                                                barcode=np.nan, cartid=np.nan, lotid=np.nan) #Script D just adds filterID, other data is added by A2 and B
+
                     master_data.loc[master_data['FilterID']==tidx, 'Flags'] = su.add_flag(master_data.loc[master_data['FilterID']==tidx, 'Flags'].values[0], updatedflag)
-                
+
+            # Sort all rows by FilterID before saving
+            master_data.sort_values(by='FilterID', inplace=True) 
+
             # write to master file
             su.write_master(master_file, master_data)
             logging.info(f'Done writing IC data to {site} master file.')
