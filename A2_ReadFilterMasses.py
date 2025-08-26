@@ -122,17 +122,19 @@ for idx, site in enumerate(site_details['Site_Code']):
                 # two possibilities:
                 # 1. filter is a lab blank
                 # 2. filter mass has not been added 
-                # the best way is to only add mass, not adding anything else (using values in master_data). 
+               
                 mass = mtl_data.loc[filter_mask_mtl, 'Net_Weight_ug'].values[0]
-                 
+
+                # mass_type: keep existing label unless lab blank logic applies
                 mass_type = master_data.loc[filter_mask_master, 'Mass_type'].values[0]
-                barcode = master_data.loc[filter_mask_master, 'Filter_Barcode'].values[0]
-                cartid = master_data.loc[filter_mask_master, 'CartridgeID'].values[0]
-                lotid = master_data.loc[filter_mask_master, 'LotID'].values[0]
+                 # Copy IDs from MTL files
+                barcode = mtl_data.loc[filter_mask_mtl, 'Filter_Barcode'].values[0]
+                cartid  = mtl_data.loc[filter_mask_mtl, 'CartridgeID'].values[0]
+                lotid   = mtl_data.loc[filter_mask_mtl, 'LotID'].values[0]
                 
                 # for negative data below threshold, label mass as nan, mass_type as 5.
                 if mass < neg_threshold and pd.isna(mass_type):
-                    # for such filters, mass_type is either nan or 5. 
+                    # for such filters, mass_type is either nan or 5. Example: lab blank
                     # if nan, label as 5 (invalid measurement)
                     mass_type = 5
                     logging.info(f'{filter} net weight too negative, label as invalid (mass_type = 5)') 
@@ -154,7 +156,8 @@ for idx, site in enumerate(site_details['Site_Code']):
                        
                 master_data = add_entry(master_data, filter,  mass, mass_type, sampling_mode, \
                     mtl_data.loc[filter_mask_mtl, 'Filter_Barcode'].values[0], mtl_data.loc[filter_mask_mtl, 'CartridgeID'].values[0], mtl_data.loc[filter_mask_mtl, 'LotID'].values[0])
-               
+        # Sort the master data by FilterID and reset index
+        master_data = master_data.sort_values(by="FilterID").reset_index(drop=True)
         # Write file 
         su.write_master(master_file, master_data)
         logging.info(f'Done adding filter mass for {site}')
