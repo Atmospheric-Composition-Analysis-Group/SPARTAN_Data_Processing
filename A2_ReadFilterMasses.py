@@ -2,6 +2,7 @@
 # PURPOSE: ------------------------------------------------------------
 # Read filter masses (output from A1) and add to the master data file
 # Perform QC on filter masses.
+# Updates the mass as well as adds new row (along with all the data) if filter ID is missing
 #
 # Input: -------------------------------------------------------------------
 # Analysis_Data/Filter_Masses/Masses_by_site/$SiteCode_masses.xlsx
