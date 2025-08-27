@@ -210,14 +210,45 @@ for idx, site in enumerate(site_details['Site_Code']):
     if len(pm25_data) == 0:  # No PM2.5 data then no need to go further
         logging.info(f'No valid PM25 data for {site}')
         continue
-    
-    # Sanity check: PM2.5 mass should not be nan
-    # This should not happen if step 2 in quality checks is done correctly
-    for idx, row in pm25_data.iterrows():
-        if pd.isna(row['mass_ug']): 
-            logging.warning(f'{row.FilterID} is PM25 mass invalid while vloume is good, check why!')
-            logging.info('exit for abnormal PM25 mass')
-            exit()
+
+    # --- Handle pending-weight filters gracefully (no deletions) ---
+    ALLOW_PENDING_MASS = True   # Set False to enforce hard-stop/exit # If check is needed # Sanity check: PM2.5 mass should not be nan
+                                                                                                  # This should not happen if step 2 in quality checks is done correctly
+    VOLUME_COL = "Volume_m3"     # <-- change if your volume column differs
+
+    # Step 1: rows where PM2.5 mass is NaN
+    is_mass_nan = pm25_data['mass_ug'].isna()
+
+    if is_mass_nan.any():
+        # Step 2: among those, check if volume exists (>0)
+        if VOLUME_COL in pm25_data.columns:
+            has_volume = pm25_data[VOLUME_COL].notna() & (pm25_data[VOLUME_COL] > 0)
+        else:
+            logging.warning(
+                f"Volume column '{VOLUME_COL}' not found; cannot verify volume for pending-weight detection."
+            )
+            has_volume = pd.Series(False, index=pm25_data.index)
+
+        # Pending := PM2.5 NaN AND volume present (>0)
+        pending = is_mass_nan & has_volume
+
+        if pending.any():
+            flagged_ids = pm25_data.loc[pending, 'FilterID'].astype(str).tolist()
+
+            if ALLOW_PENDING_MASS:
+                # Just warn; DO NOT delete or filter rows
+                logging.warning(
+                    f"{len(flagged_ids)} PM2.5 filters flagged: Volume exists but PM2.5 doesn't "
+                    f"(likely in shipment). FilterIDs: {', '.join(flagged_ids)}"
+                )
+            else:
+                # Strict mode: fail fast and say why
+                logging.error(
+                    "Detected filters where volume exists but PM2.5 is NaN (likely in shipment). "
+                    f"ALLOW_PENDING_MASS=False, so exiting. FilterIDs: {', '.join(flagged_ids)}"
+                )
+                exit(1)
+ 
 
     # STEP 3: Apply dust attenuation
     # Sub-step 1: calculate dust loading for PM2.5 and PM10
