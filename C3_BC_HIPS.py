@@ -42,7 +42,7 @@ direc = su.find_root_dir(debug_mode)
 direc_master = os.path.join(direc, 'Analysis_Data', 'Master_files')
 direc_HIPS = os.path.join(direc, 'Analysis_Data', 'HIPS', 'Reports')
 direc_archive = os.path.join(direc, 'Analysis_Data', 'Archived_Filter_Data', 'HIPS')
-log_file_path = os.path.join(direc, 'Public_Data/Data_Processing_Records/HIPS',
+log_file_path = os.path.join(direc, 'Public_Data/Data_Processing_Records/BC_HIPS',
                                 datetime.now().strftime('%Y-%m-%d-%H%MSS') + '_HIPS_Record.txt')
 
 # # TEST Dir
