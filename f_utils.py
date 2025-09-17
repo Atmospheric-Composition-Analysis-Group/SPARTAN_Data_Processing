@@ -19,7 +19,7 @@ from matplotlib import font_manager as fm
 from pathlib import Path
 
 # ---- Register user-level Arial fonts (no admin required) ----
-AR_DIR = Path("/storage1/fs1/rvmartin/Active/SPARTAN-shared/Public_Data/Scripts/.fonts")
+AR_DIR = Path("/storage1/fs1/rvmartin/Active/SPARTAN-shared/Public_Data/.fonts")
 
 # Be flexible about file names (Arial.ttf vs arial.ttf etc.)
 candidates = []
