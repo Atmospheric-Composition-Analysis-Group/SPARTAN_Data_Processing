@@ -29,13 +29,23 @@
 # Created by: --------------------------------------------------------------
 # Crystal Weagle, 22 January 2019
 # Revised by Haihui Zhu, April 2025
-
+##############################################################################
+import os, sys
+import logging, warnings
 from datetime import datetime, date
+import matplotlib as mpl
+
+# Silence Matplotlib/fontTools warnings
+if hasattr(mpl, "set_loglevel"):
+    mpl.set_loglevel("warning")
+logging.getLogger("matplotlib").setLevel(logging.WARNING)
+logging.getLogger("fontTools").setLevel(logging.WARNING)
+logging.getLogger("fontTools.subset").setLevel(logging.WARNING)
+
+# ---------------------------------------------------------------------------
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import os
-import logging
 import spt_utils as su
 import f_utils as fu
 

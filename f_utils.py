@@ -5,6 +5,7 @@
 import os
 import pandas as pd
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime
@@ -14,7 +15,40 @@ import spt_utils as su
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
 logging.getLogger('matplotlib').setLevel(logging.WARNING)  # Suppress Matplotlib Logs
+from matplotlib import font_manager as fm
+from pathlib import Path
 
+# ---- Register user-level Arial fonts (no admin required) ----
+AR_DIR = Path("/storage1/fs1/rvmartin/Active/SPARTAN-shared/Public_Data/Scripts/.fonts")
+
+# Be flexible about file names (Arial.ttf vs arial.ttf etc.)
+candidates = []
+candidates += list(AR_DIR.glob("Arial*.ttf"))
+candidates += list(AR_DIR.glob("arial*.ttf"))
+candidates += list(AR_DIR.glob("Arial*.ttc"))
+candidates += list(AR_DIR.glob("arial*.ttc"))
+
+found = 0
+for p in candidates:
+    try:
+        fm.fontManager.addfont(str(p))
+        found += 1
+    except Exception as e:
+        logging.warning(f"Could not add font {p}: {e}")
+
+if found == 0:
+    logging.warning(f"No Arial fonts found under {AR_DIR}; will fall back to DejaVu Sans.")
+
+# ---- Use Arial for plots; keep text editable in PDF/SVG ----
+mpl.rcParams.update({
+    "text.usetex"  : False,     # TeX would outline text
+    "pdf.fonttype" : 42,        # embed TrueType (editable in AI)
+    "svg.fonttype" : "none",    # keep <text> nodes in SVG
+    "ps.useafm"           : False,
+    "pdf.use14corefonts"  : False,
+    "font.family"  : "sans-serif",
+    "font.sans-serif": ["Arial", "DejaVu Sans"],  # Arial first, fallback ok
+})
 
 def get_ic_elog_dates(icelog, site):
     excel = pd.ExcelFile(icelog, engine='openpyxl')
@@ -803,7 +837,7 @@ def make_bar(rcfm_df, spec_mapping, colors, figname, savedir, city, website=Fals
     ax.set_xticklabels(rcfm_df['FilterID'], rotation=45, ha='right', fontsize=6)
     ax.tick_params(axis='both', labelsize=6)
     ax.set_xlabel('Filter ID', fontsize=8, fontweight='bold')
-    ax.set_ylabel('Attributed Concentration (µg m⁻³)', fontsize=8, fontweight='bold')
+    ax.set_ylabel('Attributed Concentration (μg/m$^{\mathbf{3}}$)', fontsize=8, fontweight='bold')
     plt.title(f'{city} Chemical Speciation', fontsize=10)
     
     # Create legend using actual column names
@@ -934,13 +968,13 @@ def make_pie(rcfm_df, spec_mapping, colors, figname, savedir, city):
     # Add a title of City name
     plt.title(city, fontsize=36, fontweight='bold')
     
-    ### Save plots
-    # eps version
+   # PDF (best for Illustrator; keeps live text if the font is installed)
     os.makedirs(savedir, exist_ok=True)
-    plt.savefig(f'{savedir}/{figname}.eps',format='eps', dpi=300, bbox_inches='tight',
-                transparent=False,  # Force disable transparency
-                facecolor='white')
-    # png version
+    plt.savefig(f"{savedir}/{figname}.pdf",
+                format="pdf", dpi=300, bbox_inches="tight",
+                transparent=False)    # png version
+    
+     # png version
     figname = f'{figname}.png'
     save_fig(savedir, figname)
  
