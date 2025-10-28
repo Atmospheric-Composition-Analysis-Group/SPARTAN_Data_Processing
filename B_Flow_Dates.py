@@ -137,6 +137,11 @@ for idx, site in enumerate(site_details['Site_Code']):
                 if mask_flow.any(): # if filter found in flow_data 
                     
                     tflow_SSe_ID = flow_data.loc[mask_flow, 'SSe_ID'].values[0]
+
+                    # Minimal strict check: stop if any alphabetic character is present in SSe_ID
+                    if isinstance(tflow_SSe_ID, str) and any(c.isalpha() for c in tflow_SSe_ID):
+                        raise ValueError(f"{site}: SSe_ID must be numeric; got {tflow_SSe_ID!r} for FilterID={tfilter}")
+
                     
                     tMaster_LotID     = master_data['LotID'][idx]
                     tMaster_ProjectID = master_data['projectID'][idx]
