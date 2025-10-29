@@ -92,7 +92,7 @@ def check_and_fill(existing_table, var, idx_massfile, new_value, filterID, repla
     
     else:  # Assume it's a string or object
         # Don't update if old value is already informative (i.e., not 'U' or NaN)
-        if pd.isna(old_value) or old_value in ['U', '1']:
+        if pd.isna(old_value) or old_value in ['U', '1', 'Unknown']:
             existing_table.at[idx_massfile, var] = new_value
             if replace_warning == 1:
                 logging.info(f'{filterID} {var} old value {old_value} replaced with {new_value}')
@@ -251,6 +251,8 @@ for data_file in files:
     # ---- Writing to MTL MASS SHEET  ----
     existing_table['Postweight_NumReps'] = existing_table['Postweight_NumReps'].fillna(0).astype(int)
     existing_table['Preweight_NumReps'] = existing_table['Preweight_NumReps'].fillna(0).astype(int)
+    # Sort by FilterID before saving
+    existing_table = existing_table.sort_values(by='FilterID', kind='mergesort').reset_index(drop=True)
     existing_table.to_csv(mass_file, index=False)
     logging.info(f'Finished writing to {site} MTL mass file \n')
 

@@ -65,6 +65,14 @@ def process_ftir_file(file_path):
     df = pd.read_csv(file_path)
     df = df[df['Parameter'].isin(['OC_ftir', 'EC_ftir', 'OM'])]
 
+    # Standardize column names of MDL_ug_m3 and mass loading
+    df.columns = (
+    df.columns
+      .str.strip()
+      .str.replace(r'^MDL$', 'MDL_ug_m3', regex=True)
+      .str.replace(r'^MassLoading$', 'MassLoading_ug', regex=True)
+    )
+
     if df.empty:
         logging.info(f"No OC or IC data found for {file_path}")
         return None
