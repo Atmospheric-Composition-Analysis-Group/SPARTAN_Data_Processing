@@ -55,7 +55,6 @@ log_file_path = os.path.join(direc, 'Public_Data/Data_Processing_Records/FTIR',
 su.setup_logging(log_file_path)
 logging.info("C4 started")
 
-
 # ============================
 # Optimized Functions
 # ============================
