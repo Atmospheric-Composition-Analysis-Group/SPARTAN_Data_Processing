@@ -26,14 +26,19 @@
 # Suppliment: ------------------------------------------------------
 # Site_Sampling/Site_details.xlsx
 # 
+# Version Update Notes (Older data versions can be found in Archive folder): -------------------------------------------------------
+# Version 2.0 (March 2021): Initial public data release
+# Update from version 3.0 to 3.1 was made on Oct 2025: Dr. Xuan Liu's updated dust attenuation correction for Al and Si
+#
 # Created by: --------------------------------------------------------------
 # Crystal Weagle, 22 January 2019
-# Revised by Haihui Zhu, April 2025
+# Revised by Haihui Zhu, April 2025, Nidhi Anchan, Oct 2025
 ##############################################################################
 import os, sys
 import logging, warnings
 from datetime import datetime, date
 import matplotlib as mpl
+import pandas as pd
 
 # Silence Matplotlib/fontTools warnings
 if hasattr(mpl, "set_loglevel"):
@@ -49,12 +54,13 @@ import numpy as np
 import spt_utils as su
 import f_utils as fu
 
-# ============================
+# ===============================
 # Initial Setup and Configuration
-# ============================
+# ===============================
 debug_mode = 0
 direc = su.find_root_dir(debug_mode)
-DataVersion = 'Data version 3.0'  # will be in the first line of the public files
+DataVersion = 'Data version 3.1'  # will be in the first line of the public files
+
 # ============================
 # Directory & File Paths
 # ============================
@@ -137,7 +143,7 @@ BC_table = pd.DataFrame(
 
 # #Uncomment this if start from a specific site: 
 # site_list = site_details['Site_Code'].tolist()
-# start_site = 'USSL' 
+# start_site = 'CHTS' 
 # start_idx = site_list.index(start_site)
 # for idx in range(start_idx, len(site_list)):
 #     site = site_details['Site_Code'][idx]
@@ -269,8 +275,8 @@ for idx, site in enumerate(site_details['Site_Code']):
     # [dust] = [1.89Al×(1+MAL)+2.14Si+1.40Ca+1.36Fe+1.67Ti]×CF
     # if no XRF, only ICP-MS data available, soil is defined as:
     # [dust] = 10*([Al] + [Fe] + [Mg]), if no Fe use: [dust] = 10*([Mg] + 30*[Ti] + [Al])
-    _, dust_pm25filters = fu.get_dust(pm25_data, tsite_info)
-    _, dust_pm10filters = fu.get_dust(pm10_data, tsite_info)
+    dust25_ugm3, dust_pm25filters = fu.get_dust(pm25_data, tsite_info) #soil,soilxvol
+    dust10_ugm3, dust_pm10filters = fu.get_dust(pm10_data, tsite_info)
     
     # ---- Sub-step 2: Al and Si attenuation ----
     # Xuan Liu, Jan, 2025: 
@@ -286,19 +292,68 @@ for idx, site in enumerate(site_details['Site_Code']):
     # [Al_new] = [Al] * 0.77 / A
     # 
     # The dust_loading used in the equations needs to be in the form of μg/cm2. The deposition area used to calculate dust mass loading is 3.53 cm2.
+    # v3.0 data Code for the above calculations:
+    # # PM2.5
+    # dust_loading = dust_pm25filters / 3.53  # unit ug/cm2
+    # A = 0.78 - 8.6e-4 * dust_loading + 4.0e-7 * dust_loading**2
+    # pm25_data.loc[:, 'Si_XRF_ng'] = pm25_data.loc[:, 'Si_XRF_ng'].values.reshape(-1, 1) / A   
+    # pm25_data.loc[:, 'Al_XRF_ng'] = pm25_data.loc[:, 'Al_XRF_ng'].values.reshape(-1, 1) * 0.77 / A    
     
-    # PM2.5
-    dust_loading = dust_pm25filters / 3.53  # unit ug/cm2
-    A = 0.78 - 8.6e-4 * dust_loading + 4.0e-7 * dust_loading**2
-    pm25_data.loc[:, 'Si_XRF_ng'] = pm25_data.loc[:, 'Si_XRF_ng'].values.reshape(-1, 1) / A   
-    pm25_data.loc[:, 'Al_XRF_ng'] = pm25_data.loc[:, 'Al_XRF_ng'].values.reshape(-1, 1) * 0.77 / A    
-    
-    # PM10  # The ratio of 0.91 is used to calculate the PM10 attenuation based on the PM2.5 attenuation.
-    dust_loading = dust_pm10filters / 3.53  # unit ug/cm2
-    A = 0.78 - 8.6e-4 * dust_loading + 4.0e-7 * dust_loading**2 * 0.91
-    pm10_data.loc[:, 'Si_XRF_ng'] = pm10_data.loc[:, 'Si_XRF_ng'].values.reshape(-1, 1) / A   
-    pm10_data.loc[:, 'Al_XRF_ng'] = pm10_data.loc[:, 'Al_XRF_ng'].values.reshape(-1, 1) * 0.77 / A    
+    # # PM10  # The ratio of 0.91 is used to calculate the PM10 attenuation based on the PM2.5 attenuation.
+    # dust_loading = dust_pm10filters / 3.53  # unit ug/cm2
+    # A = 0.78 - 8.6e-4 * dust_loading + 4.0e-7 * dust_loading**2 * 0.91
+    # pm10_data.loc[:, 'Si_XRF_ng'] = pm10_data.loc[:, 'Si_XRF_ng'].values.reshape(-1, 1) / A   
+    # pm10_data.loc[:, 'Al_XRF_ng'] = pm10_data.loc[:, 'Al_XRF_ng'].values.reshape(-1, 1) * 0.77 / A    
 
+    # Update Xuan Liu: Oct 14, 2025: v3.1 data
+    # ------------------ PM2.5 -------------------
+    # A = (0.78 - 8.6e-4 * dust_loading + 4.0e-7 * dust_loading^2) * f
+    # [Si_new] = [Si] / A
+    # [Al_new] = [Al] * 0.77 / A
+    # The additional coefficient of 0.77 is used to exclude the impact of attenuation introduced by non-representative standards in Al calibration.
+    
+    # ------------------ PM10 --------------------
+    # A = (0.78 - 8.6e-4 * dust_loading + 4.0e-7 * dust_loading^2) * 0.92 * f
+    # [Si_new] = [Si] / A
+    # The ratio of 0.92 is used to calculate the PM10 attenuation based on the PM2.5 attenuation.
+    # [Al_new] = [Al] * 0.77 / A
+    
+    # The scaling factor is calculated as:
+    # f = w_dust + (1 - w_dust) * 1.2
+    # w_dust is the dust mass fraction. The dust_loading used in the equations needs to be in the form of μg/cm2. The deposition area used to calculate dust mass loading is 3.53 cm2.
+    
+    # Calculate dust mass fraction
+    pm25_total = np.asarray(pm25_data['mass_ug'].to_numpy(), dtype=float).ravel() # ug/m3
+    pm25_dust  = np.asarray(dust25_ugm3, dtype=float).ravel() #ug/m3
+    w_dust25 = np.zeros_like(pm25_total, dtype=float)
+    np.divide(pm25_dust, pm25_total, out=w_dust25, where=pm25_total > 0)
+    #w_dust25 = np.clip(np.nan_to_num(w_dust25), 0.0, 1.0)
+
+    pm10_total = np.asarray(pm10_data['mass_ug'].to_numpy(), dtype=float).ravel()
+    pm10_dust  = np.asarray(dust10_ugm3, dtype=float).ravel()
+    w_dust10 = np.zeros_like(pm10_total, dtype=float)
+    np.divide(pm10_dust, pm10_total, out=w_dust10, where=pm10_total > 0)
+    #w_dust10 = np.clip(np.nan_to_num(w_dust10), 0.0, 1.0)
+    
+    # Scaling Factor f
+    f25 = w_dust25 + (1 - w_dust25) * 1.2
+    f10 = w_dust10 + (1 - w_dust10) * 1.2
+ 
+    # PM2.5
+    dust_loading = np.asarray(dust_pm25filters, dtype=float).ravel() / 3.53  # ug/cm2 (force 1-D)
+    A = (0.78 - 8.6e-4 * dust_loading + 4.0e-7 * dust_loading**2) * f25        
+    A = np.asarray(A, dtype=float).ravel()                                   
+    pm25_data.loc[:, 'Si_XRF_ng'] = pm25_data['Si_XRF_ng'].to_numpy(dtype=float) / A
+    pm25_data.loc[:, 'Al_XRF_ng'] = pm25_data['Al_XRF_ng'].to_numpy(dtype=float) * 0.77 / A
+
+
+    # PM10  
+    dust_loading = np.asarray(dust_pm10filters, dtype=float).ravel() / 3.53   # ug/cm2 (force 1-D)
+    A = (0.78 - 8.6e-4 * dust_loading + 4.0e-7 * dust_loading**2) * 0.92 * f10  
+    A = np.asarray(A, dtype=float).ravel()                                     
+
+    pm10_data.loc[:, 'Si_XRF_ng'] = pm10_data['Si_XRF_ng'].to_numpy(dtype=float) / A
+    pm10_data.loc[:, 'Al_XRF_ng'] = pm10_data['Al_XRF_ng'].to_numpy(dtype=float) * 0.77 / A
 
     # ===================================
     # OUTPUT FILE 1: {Site}_speciation.csv
