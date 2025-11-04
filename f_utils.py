@@ -504,12 +504,12 @@ def populate_SpecChem(pm_data, Sampling_Parameters_Methods, site_info, direc_out
                             ic_para = PM25_IC_para
                         elif masstype == 'pm10':
                             ic_para = PM10_IC_para
-                        
-                        if col.endswith('_T'):
-                            method_params = ic_para[
-                                (ic_para['Parameter'].str.contains(ele_ful, case=False)) & 
-                                (ic_para['Collection Description'].str.contains('Teflon')) &
-                                (ic_para['Sampling Mode'] == sam_mode) 
+
+                        if col.endswith('_T') and pd.notna(row[col]): # Only process Teflon (“_T”) columns when the cell has a real value. Added to intentionally SKIP missing T values (NaN/None/NaT) so we don’t run T-logic
+                            method_params = ic_para[                  # on blanks—this avoids unnecessary IC e-log lookups (which can raise KeyError if the Teflon entry isn’t yet in the e-log) and keeps the pipeline clean.                     
+                                (ic_para['Parameter'].str.contains(ele_ful, case=False)) &   
+                                (ic_para['Collection Description'].str.contains('Teflon')) & 
+                                (ic_para['Sampling Mode'] == sam_mode)                       
                             ]
                             
                             if not method_params.empty and sam_mode == 'SPARTAN':
@@ -521,7 +521,18 @@ def populate_SpecChem(pm_data, Sampling_Parameters_Methods, site_info, direc_out
                                 # There are IC elements that not reported (not avail in IC_para)
                                 continue
                             
-                            # MDL & UNC 
+                            # MDL & UNC
+                            fid = row.get('FilterID', None)
+                            try:
+                                elog_date = ic_elog[fid]  # original lookup
+                            except KeyError as e:
+                                # Hard error with actionable instructions
+                                raise KeyError(
+                                    f"IC e-log entry not found for FilterID='{fid}' while processing Teflon column '{col}'. "
+                                    f"Check the IC E-log for a matching entry (exact '{fid}') or a variant like "
+                                    f"'{fid}-8T' or '{fid}-8N'."
+                                ) from e
+                            
                             if ic_elog[row['FilterID']] < datetime(2021,11,25):
                                 mdl_values = ic_mdl_tef.loc['Before_2021_Nov25_ug',f'IC_conc_{ele}']
                             else:
@@ -531,6 +542,14 @@ def populate_SpecChem(pm_data, Sampling_Parameters_Methods, site_info, direc_out
                             new_row['MDL'] = mdl_values
                             new_row['UNC'] = ''
                             
+                        elif col.endswith('_T'):
+                            logging.warning(
+                                "[SpecChem] Skipping Teflon column due to missing value: FilterID=%r, column=%s, value=%r. "
+                                "This often means the Teflon measurement is blank or the IC e-log isn’t populated yet.",
+                                row.get('FilterID', None), col, row[col]
+                            ) 
+                            continue
+                               
                         elif col.endswith('_N'):
                             if ele == 'NH4': # report estimated NH4 using nitrate
                                 method_params = ic_para[
