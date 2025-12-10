@@ -29,7 +29,7 @@
 # Version Update Notes (Older data versions can be found in Archive folder): -------------------------------------------------------
 # Version 2.0 (March 2021): Initial public data release
 # Update from version 3.0 to 3.1 (Oct 2025): Dr. Xuan Liu's updates dust attenuation correction for Al and Si
-# Version 3.1.1 (Dec 2025): Bug Fix to avoid adding OC abd EC_FTR_MDL values again as a separate row
+# Version 3.1.1 (Dec 2025): Bug Fix to avoid adding OC abd EC_FTIR_MDL values again as a separate row
 #
 # Created by: --------------------------------------------------------------
 # Crystal Weagle, 22 January 2019
