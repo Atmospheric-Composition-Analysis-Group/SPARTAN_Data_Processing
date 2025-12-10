@@ -28,7 +28,8 @@
 # 
 # Version Update Notes (Older data versions can be found in Archive folder): -------------------------------------------------------
 # Version 2.0 (March 2021): Initial public data release
-# Update from version 3.0 to 3.1 was made on Oct 2025: Dr. Xuan Liu's updated dust attenuation correction for Al and Si
+# Update from version 3.0 to 3.1 (Oct 2025): Dr. Xuan Liu's updates dust attenuation correction for Al and Si
+# Version 3.1.1 (Dec 2025): Bug Fix to avoid adding OC abd EC_FTR_MDL values again as a separate row
 #
 # Created by: --------------------------------------------------------------
 # Crystal Weagle, 22 January 2019
@@ -59,7 +60,7 @@ import f_utils as fu
 # ===============================
 debug_mode = 0
 direc = su.find_root_dir(debug_mode)
-DataVersion = 'Data version 3.1'  # will be in the first line of the public files
+DataVersion = 'Data version 3.1.1'  # will be in the first line of the public files
 
 # ============================
 # Directory & File Paths
@@ -143,7 +144,7 @@ BC_table = pd.DataFrame(
 
 # #Uncomment this if start from a specific site: 
 # site_list = site_details['Site_Code'].tolist()
-# start_site = 'CHTS' 
+# start_site = 'ETAD' 
 # start_idx = site_list.index(start_site)
 # for idx in range(start_idx, len(site_list)):
 #     site = site_details['Site_Code'][idx]

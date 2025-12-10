@@ -579,7 +579,7 @@ def populate_SpecChem(pm_data, Sampling_Parameters_Methods, site_info, direc_out
                             new_row['UNC'] = ''
                     
                     
-                elif '_FTIR_' in col:
+                elif ('_FTIR_' in col) and ('MDL' not in col) and ('UNC' not in col): #Fix: v3.1.1 to avoid adding MDL/UNC coulmns again as a separate row
                     ele = col.split('_')[0]
                     
                     if masstype == 'pm25':
