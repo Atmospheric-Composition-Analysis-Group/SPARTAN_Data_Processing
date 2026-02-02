@@ -233,9 +233,10 @@ def mask_invalid_ic_data(master_data):
 def convert_mass_to_concentration(df):
     # Get positions of the boundary columns
     vol_col = 'Volume_m3'
-    method_col = 'method_index'
+    #method_col = 'method_index'
+    IC_T_complete_date_col = 'IC_T_complete_date'
     vol_idx = df.columns.get_loc(vol_col) + 1  # Start after Volume_m3
-    method_idx = df.columns.get_loc(method_col)  # End before method_index
+    method_idx = df.columns.get_loc(IC_T_complete_date_col)  # End before IC_T_complete_date which was method_index in the prev version Update: Feb 2, 2026
   
     # Get columns between Volume_m3 and method_index
     cols_to_convert = df.columns[vol_idx:method_idx]
@@ -400,7 +401,7 @@ def populate_SpecChem(pm_data, Sampling_Parameters_Methods, site_info, direc_out
     
     # Loop through each row in pm data
     for idx, row in pm_data.iterrows():
-        
+
         for col in pm_data.columns:
             
             if pd.notna(row.get(col)): # only report data that are not a nan
@@ -494,7 +495,7 @@ def populate_SpecChem(pm_data, Sampling_Parameters_Methods, site_info, direc_out
                             # In case there are ICP elements that not reported (not avail in metals_para)
                             continue
                         
-                elif 'IC_' in col:
+                elif ('IC_' in col) and (not col.endswith('_date')):
                     # identify element
                     ele = col.split('_')[1]
                     if ele in element_codes: # there are icp element that are not in method list (e.g. Silver)
@@ -549,7 +550,7 @@ def populate_SpecChem(pm_data, Sampling_Parameters_Methods, site_info, direc_out
                                 row.get('FilterID', None), col, row[col]
                             ) 
                             continue
-                               
+
                         elif col.endswith('_N'):
                             if ele == 'NH4': # report estimated NH4 using nitrate
                                 method_params = ic_para[
@@ -631,7 +632,6 @@ def populate_SpecChem(pm_data, Sampling_Parameters_Methods, site_info, direc_out
                             ].iloc[0]
                 else: # skip columns about site/filter info 
                     continue
-                
                 # adding value of the measurement
                 new_row['Value'] = round(row[col], 2)
                 
@@ -992,7 +992,7 @@ def make_pie(rcfm_df, spec_mapping, colors, figname, savedir, city):
     plt.savefig(f"{savedir}/{figname}.pdf",
                 format="pdf", dpi=300, bbox_inches="tight",
                 transparent=False)    # png version
-    
+      
      # png version
     figname = f'{figname}.png'
     save_fig(savedir, figname)
