@@ -144,7 +144,7 @@ BC_table = pd.DataFrame(
 
 # #Uncomment this if start from a specific site: 
 # site_list = site_details['Site_Code'].tolist()
-# start_site = 'ETAD' 
+# start_site = 'USNO' 
 # start_idx = site_list.index(start_site)
 # for idx in range(start_idx, len(site_list)):
 #     site = site_details['Site_Code'][idx]
@@ -156,7 +156,8 @@ for idx, site in enumerate(site_details['Site_Code']):
     master_file = os.path.join(direc_master, f'{site}_master.csv')
     master_data = su.read_master(master_file)
     Titles, dtype = su.master_heading()
-    
+    master_full = master_data.copy(deep=True) #Used for adding IC complete date
+
     if master_data.empty:
         continue
     
@@ -228,7 +229,7 @@ for idx, site in enumerate(site_details['Site_Code']):
         logging.info(f'No valid PM25 data for {site}')
         continue
 
-    # --- Handle pending-weight filters gracefully (no deletions) ---
+    # --- Handle pending-weight filters (no deletions) ---
     ALLOW_PENDING_MASS = True   # Set False to enforce hard-stop/exit # If check is needed # Sanity check: PM2.5 mass should not be nan
                                                                                                   # This should not happen if step 2 in quality checks is done correctly
     VOLUME_COL = "Volume_m3"     # <-- change if your volume column differs
@@ -484,7 +485,7 @@ for idx, site in enumerate(site_details['Site_Code']):
                         (RCFM_parameters['Collection Description'].str.contains('Telfon filter plus')) 
                     ].iloc[0]
                     
-                else:   
+                else:  
                     rcfm[component] = row['IC_NH4_ug_T'] 
                     
                     method_params = PM25_IC_para[
@@ -758,6 +759,120 @@ for idx, site in enumerate(site_details['Site_Code']):
     savedir = f'{direc_output}/Chemical_Filter_Data/Plots/'
     fname = f"{tsite_info.Site_Code}_PM25_Spec_website.png"
     fu.bar_website(rcfm_df,fname, savedir, tsite_info.City)
+
+    # =================================================================
+    # UPDATE MASTER FILE with IC processing dates
+    # =================================================================
+
+    # --- NEW: stamp IC processing dates based on RCFM piechart evidence (Teflon/Nylon) ---
+    today = date.today().isoformat()
+
+    # Ensure the date columns exist (prevents KeyError on older masters)
+    for col in ["IC_T_complete_date", "IC_N_complete_date"]:
+        if col not in master_full.columns:
+            master_full[col] = pd.NA
+
+    # # --- OPTIONAL RESET (uncomment the next two lines to wipe existing dates and re-stamp) ---
+    # Refer to F_script in Script_dev folder for the reset code if needed #Line 789-791
+
+
+
+    # -------------------------
+    # TEFLON rule (updated to match your definition):
+    # If (Sulfate OR Ammonium OR Nitrate OR Sea Salt) is present in the RCFM piechart row for that FilterID
+    # AND IC_T_complete_date is blank -> write today (never overwrite)
+    # -------------------------
+
+    # Normalize RCFM filter IDs and coerce key columns to numeric (so "" becomes NaN)
+    rcfm_tmp = rcfm_df.copy()
+    rcfm_tmp["FilterID"] = rcfm_tmp["FilterID"].dropna().astype(str).str.strip()
+
+    teflon_cols = ["Sulfate", "Ammonium", "Nitrate", "Sea Salt"]
+    teflon_cols_exist = [c for c in teflon_cols if c in rcfm_tmp.columns]
+    for c in teflon_cols_exist:
+        rcfm_tmp[c] = pd.to_numeric(rcfm_tmp[c], errors="coerce")
+
+    # FilterIDs that have ANY teflon evidence in the piechart dataset
+    if teflon_cols_exist:
+        teflon_done_ids = (
+            rcfm_tmp.groupby("FilterID")[teflon_cols_exist]
+            .apply(lambda d: d.notna().any().any())
+        )
+        teflon_done_set = set(teflon_done_ids[teflon_done_ids].index)
+    else:
+        teflon_done_set = set()
+        logging.warning(f"[{site}] None of TEFLON columns found in rcfm_df: {teflon_cols}")
+
+    in_teflon_done = master_full["FilterID"].astype(str).str.strip().isin(teflon_done_set)
+
+    blank_t = (
+        master_full["IC_T_complete_date"].isna()
+        | (master_full["IC_T_complete_date"].astype(str).str.strip() == "")
+    )
+
+    to_update_t = in_teflon_done & blank_t
+    updated_t_ids = master_full.loc[to_update_t, "FilterID"].astype(str).tolist()
+
+    master_full.loc[to_update_t, "IC_T_complete_date"] = today
+
+    if updated_t_ids:
+        show = ", ".join(updated_t_ids[:25])
+        more = "" if len(updated_t_ids) <= 25 else f" ... (+{len(updated_t_ids)-25} more)"
+        logging.info(
+            f"[{site}] Set IC_T_complete_date={today} for {len(updated_t_ids)} FilterIDs "
+            f"(RCFM evidence in any of {teflon_cols_exist}): {show}{more}"
+        )
+    else:
+        logging.info(f"[{site}] No IC_T_complete_date updates needed.")
+
+
+    # -------------------------
+    # NYLON rule (updated to match your definition):
+    # If (Nitrate OR Ammonium) is present in the RCFM piechart row for that FilterID
+    # AND IC_N_complete_date is blank -> write today (never overwrite)
+    # -------------------------
+
+    nylon_cols = ["Nitrate", "Ammonium"]
+    nylon_cols_exist = [c for c in nylon_cols if c in rcfm_tmp.columns]
+    for c in nylon_cols_exist:
+        rcfm_tmp[c] = pd.to_numeric(rcfm_tmp[c], errors="coerce")
+
+    # FilterIDs that have ANY nylon evidence in the piechart dataset
+    if nylon_cols_exist:
+        nylon_done_ids = (
+            rcfm_tmp.groupby("FilterID")[nylon_cols_exist]
+            .apply(lambda d: d.notna().any().any())
+        )
+        nylon_done_set = set(nylon_done_ids[nylon_done_ids].index)
+    else:
+        nylon_done_set = set()
+        logging.warning(f"[{site}] None of NYLON columns found in rcfm_df: {nylon_cols}")
+
+    in_nylon_done = master_full["FilterID"].astype(str).str.strip().isin(nylon_done_set)
+
+    blank_n = (
+        master_full["IC_N_complete_date"].isna()
+        | (master_full["IC_N_complete_date"].astype(str).str.strip() == "")
+    )
+
+    to_update_n = in_nylon_done & blank_n
+    updated_n_ids = master_full.loc[to_update_n, "FilterID"].astype(str).tolist()
+
+    master_full.loc[to_update_n, "IC_N_complete_date"] = today
+
+    if updated_n_ids:
+        show = ", ".join(updated_n_ids[:25])
+        more = "" if len(updated_n_ids) <= 25 else f" ... (+{len(updated_n_ids)-25} more)"
+        logging.info(
+            f"[{site}] Set IC_N_complete_date={today} for {len(updated_n_ids)} FilterIDs "
+            f"(RCFM evidence in any of {nylon_cols_exist}): {show}{more}"
+        )
+    else:
+        logging.info(f"[{site}] No IC_N_complete_date updates needed.")
+
+
+    # Persist back to the master (only dates should differ from original)
+    su.write_master(master_file, master_full)
     
     # =================================================================
     # FIGURE 4: RCFM Pie chart - all data
