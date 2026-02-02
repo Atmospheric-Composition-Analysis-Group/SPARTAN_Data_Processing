@@ -213,7 +213,7 @@ def master_heading():
         'IC_F_ug_N':'float64', 'IC_Cl_ug_N':'float64', 'IC_NO2_ug_N':'float64', 'IC_Br_ug_N':'float64', 'IC_NO3_ug_N':'float64', 'IC_PO4_ug_N':'float64', 'IC_SO4_ug_N':'float64',
         'IC_Li_ug_N':'float64', 'IC_Na_ug_N':'float64', 'IC_NH4_ug_N':'float64', 'IC_K_ug_N':'float64', 'IC_Mg_ug_N':'float64', 'IC_Ca_ug_N':'float64',
 
-        #IC proceesing date: (The date when F script was run for the first time for that filter)
+        #IC proceesing date: (The date when the filter ID appears in RCFM piechart with additional field data)
         'IC_T_complete_date':'object', 'IC_N_complete_date':'object',
         
         # Final columns (2)
