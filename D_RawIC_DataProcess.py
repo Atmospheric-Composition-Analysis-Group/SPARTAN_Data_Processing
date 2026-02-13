@@ -122,13 +122,14 @@ def find_row_col(df, pattern):
 def read_calib_curve(file_path, sheet_name):
     raw_calibration = pd.read_excel(file_path, sheet_name=sheet_name)
     
-    # check if the data is from WashU. Stop when it isn't
+    # check if the data is from SPARTAN (WashU) or THERMO-SCIENTIFIC. Stop when it isn't
     # Locate the cell containing 'Operator:'
     row_idx, col_idx = find_row_col(raw_calibration, 'operator')
     next_col = raw_calibration.columns[raw_calibration.columns.get_loc(col_idx) + 1]
     operator_value = raw_calibration.at[row_idx, next_col]
-    if operator_value != 'SPARTAN':
-        print(f'file operator: {operator_value}')
+    if operator_value not in ('SPARTAN', 'THERMO-SCIENTIFIC'):
+        print(f"[EXIT] {file_path}: unexpected operator '{operator_value}'. "
+              f"Allowed 'SPARTAN' or 'THERMO-SCIENTIFIC'.")
         exit()
             
     # find the date
@@ -286,11 +287,8 @@ def update_flag(tflag, newstr):
         udpatedflag = [segment.strip() + newstr for segment in tflag.split(';')]
         udpatedflag = '; '.join(udpatedflag)
     return udpatedflag
-    
 
 
-
-    
 def add_entry(master_data, filter,  mass, mass_type, sampling_mode, barcode, cartid, lotid):
     if filter in master_data['FilterID'].values:
         mask = master_data['FilterID'] == filter
@@ -319,7 +317,7 @@ def add_entry(master_data, filter,  mass, mass_type, sampling_mode, barcode, car
         master_data.iloc[-1, master_data.columns.get_loc('Mass_type')] = mass_type
     
     return master_data   
-       
+    
 # ============================
 # Start processing 
 # ============================
@@ -582,4 +580,4 @@ for file in files:
         os.remove(file_path)
         logging.info('Moved IC file to archive.\n')
  
-logging.info("Complete!")
+logging.info("Completed successfully!")
