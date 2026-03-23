@@ -140,8 +140,7 @@ def read_calib_curve(file_path, sheet_name):
     # find if cubic curve exists in this sheet:
     cubic_idx, _ = find_row_col(raw_calibration, 'calibration summary')
     # cubic_idx = raw_calibration.index[raw_calibration.apply(lambda row: 'Calibration Summary' in str(row.values), 1).min()][0] 
-    cubic = raw_calibration.iloc[cubic_idx, 1] 
-            
+    cubic = raw_calibration.iloc[cubic_idx, 1] # the cell right to 'Calibration Summary' should indicate if there is a cubic curve. 1 for yes, 0 for no. If this cell is missing, will default to NaN (no cubic curve)
     # Find start and end indices
     mask = raw_calibration.apply(lambda row: any('Peak Name' in str(cell) for cell in row), axis=1)
     if not mask.any():
@@ -219,43 +218,106 @@ def read_conc_and_signal(file_path, sheet_name):
     
     return conc, area
 
-def calc_conc(calib, calib_low_conc, selec_area, apply_low_conc_curve, cubic):
+def calc_conc(calib, calib_low_conc, selec_area, apply_low_conc_curve, cubic, ion=None):
+    """
+    Solve for concentration using calibration curve parameters.
+
+    Default:
+        return np.nan for missing / invalid cases
+
+    Optional debug sentinels (currently commented):
+        -77777 : no calibration curve / unsupported calibration type
+        -88888 : no signal
+        -66666 : cubic indicated but coefficients unavailable / cubic disabled
+        -99999 : no valid solution to the signal
+    """
     
     """Solve for concentration using calibration curve parameters"""
-    if 'Cubic' in calib['Cal.Type']: # this is not a robust check since some old files has 'cubic' in 'cal type' but don't provide cubic coeff
-
-        if  cubic == 1: 
-            if abs(selec_area)>=0:
+    if 'Cubic' in calib['Cal.Type']:  # this is not a robust check since some old files has 'cubic' in 'cal type' but don't provide cubic coeff
+        if cubic == 1:
+            if not pd.isna(selec_area):
                 # Cubic equation: area = Offset + Slope*conc + Curve*conc² + Cubic*conc³
                 # Rearrange to: Cubic*conc³ + Curve*conc² + Slope*conc + (Offset - area) = 0
                 coeffs = [calib['Cubic'], calib['Curve'], calib['Slope'], (calib['Offset'] - selec_area)]
-                # Find roots of cubic polynomial
                 roots = np.roots(coeffs)
                 
-                # Filter real positive roots
-                real_roots = [r.real for r in roots if np.isreal(r)] # do not need to find the positive root. For H2O samples, conc can be nagative
-                if  len(real_roots) == 1:
-                    conc = real_roots[0] 
+                # keep real roots only
+                real_roots = [r.real for r in roots if np.isreal(r)] 
+
+                #Try to find a root inside the normal valid calibration range. the upper limite of NH4 conc is 8 ug/mL (previous value: 4.51 ug/mL).
+                valid_roots = [r for r in real_roots if 0 <= r <= 8]
+
+                if len(valid_roots) > 0:
+                    conc = min(valid_roots)
                 else:
-                    real_positve_roots = [r for r in real_roots if r>0]
+                    logging.warning(f'No valid cubic root in [0, 8] for {ion}; area={selec_area}')
                     
-                    if len(real_positve_roots) > 0:
-                        conc = min(real_positve_roots)  # pick the minimum positive value
-                    else: 
-                        conc = max(real_roots) # pick the maximum nagative value
+                    # NH4-specific high-range fallback as well as low-concentration fallback
+                    if ion == 'NH4':
+                        used_low_curve = False
+
+                        # NH4 low-concentration fallback
+                        if apply_low_conc_curve == 1 :
+                            calib_low_conc = calib_low_conc.sort_values('signal')
+                            sig_min = calib_low_conc['signal'].min()
+                            sig_max = calib_low_conc['signal'].max()
+
+                            if sig_min <= selec_area <= sig_max:
+                                conc = np.interp(selec_area,
+                                                calib_low_conc['signal'],
+                                                calib_low_conc['conc'])
+                                used_low_curve = True
+                                logging.info(f'Used NH4 low-concentration curve; area={selec_area}, conc={conc}')
+
+                        if not used_low_curve:
+                            # Very high NH4 concentration. Using a specific coefficient set (from Chris/Haihui, ammonium.xlsx). 
+                            # Only exist for NH4 and all other components are linear relationship.
+                            # Old values b00 = 0.0645945, b11 = 0.241887, b22 = -0.006855, b33 = 0.00011 Update: March 19, 2026
+                            b00 = 0.164667534477015
+                            b11 = 0.19575174536578
+                            b22 = -0.00458967266509053
+                            b33 = 0.0000567465875816639
+
+                            coeffs2 = [b33, b22, b11, (b00 - selec_area)]
+                            roots2 = np.roots(coeffs2)
+                            #Keep real root only
+                            #real_roots2 = [r.real for r in roots2 if np.isclose(r.imag, 0, atol=1e-10)]
+                            real_roots2 = [r.real for r in roots2 if np.isreal(r)]
+
+                            # These coefficients valid up to 31 ug/mL
+                            valid_roots2 = [r for r in real_roots2 if 0 <= r <= 31]
+
+                            if len(valid_roots2) > 0:
+                                conc = min(valid_roots2)
+                                logging.info(f'Used NH4 high-range fallback < 31 ug/mL;, conc={conc}')
+                            else:
+                                logging.error(f'NH4 fallback failed')
+                                raise ValueError(
+                                    f'NH4: no valid solution found in [0, 8] NH4 low-conc curve, or fallback [0, 31] for area={selec_area}')
+                                #conc = -9999
+                    else:
+                        logging.error(f'Unexpected cubic ion other than NH4: {ion}')
+                        raise ValueError(
+                            f'Unexpected cubic ion other than NH4: {ion} at area={selec_area}')
+                    
             else:
+                logging.warning(f'No signal for {ion}: area is NaN')
                 conc = np.nan
+                # conc = -88888
         else:
-            conc = np.nan
+            logging.error(f"Cubic calibration detected for {ion}, but cubic solving is disabled; cubic flag={cubic}")
+            raise ValueError(f"Cubic calibration detected for {ion}, but cubic solving is disabled; cubic flag={cubic}")
+            # conc = np.nan
+            # conc = -66666
                      
     elif 'Lin' in calib['Cal.Type']:
         # Linear equation: area = Offset + Slope * conc
         conc = (selec_area - calib['Offset']) / calib['Slope']
         
-        if apply_low_conc_curve == 1: # can apply low_conc curve for filtees with tiny areas
-            if conc < calib_low_conc['conc'].max()*0.85: # notably lower than the high end of the curve
+        if apply_low_conc_curve == 1:  # can apply low_conc curve for filters with tiny areas
+            if conc < calib_low_conc['conc'].max()*0.85:  # notably lower than the high end of the curve
                 conc = np.interp(selec_area, calib_low_conc['signal'], calib_low_conc['conc'])
-                       
+
     return conc
  
  
@@ -401,8 +463,8 @@ for file in files:
             continue
         
         # read low conc calibration curve:
-        if ion == 'NH4': # NH4 do not have a low conc curve
-            calib_low_conc = None
+        # if ion == 'NH4': # NH4 low conc curve added on Mar 23, 2026
+        #     calib_low_conc = None
         else:
             calib_low_conc = pd.read_excel(low_conc_curve_file, sheet_name=ion)
     
@@ -410,7 +472,7 @@ for file in files:
         select_area = all_area[ion_full] # select the column for this ion
         for idx, area_val in select_area.items():
             # replace concentration with our calculated values
-            all_conc.loc[idx, ion_full]= calc_conc(calib, calib_low_conc, area_val, apply_low_conc_curve, cubic)
+            all_conc.loc[idx, ion_full]= calc_conc(calib, calib_low_conc, area_val, apply_low_conc_curve, cubic, ion=ion)
     
         ### QC and Flags ###
         # check correlation of calibration curve, flag if lower than CorrCoeff_threshold
