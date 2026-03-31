@@ -573,7 +573,7 @@ for file in files:
                 
                 # Update flags for nylon
                 nylon_filters = nylon_samples['FilterID'].unique()
-                updatedflag = update_flag(tflag, '-T')
+                updatedflag = update_flag(tflag, '-N')
                 for nidx in nylon_filters:
                     # Ensure FilterID exists in master_data
                     # If not, add a new entry with NaN mass and empty fields
