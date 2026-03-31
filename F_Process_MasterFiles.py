@@ -30,7 +30,10 @@
 # Version 2.0 (March 2021): Initial public data release
 # Update from version 3.0 to 3.1 (Oct 2025): Dr. Xuan Liu's updates dust attenuation correction for Al and Si
 # Version 3.1.1 (Dec 2025): Bug Fix to avoid adding OC abd EC_FTIR_MDL values again as a separate row
-#
+# Version 3.1.2 (March 2026): Update in the calculation of the Residual Matter and PBW. As per Dr. Christopher Oxford  paper.
+#                             Addition of two different Residual Matter is made.
+# Version 3.1.3 (March 2026): Bug Fix in the TEO calculation function of f_utils.py.
+# Version 3.1.4 (March 2026): Bug Fix for BadNa cartridge filtering. The code now correctly identifies the cartridges with bad Na and sets the IC_Na_ug_T values to NaN for all filters in those cartridges.
 # Created by: --------------------------------------------------------------
 # Crystal Weagle, 22 January 2019
 # Revised by Haihui Zhu, April 2025, Nidhi Anchan, Oct 2025
@@ -60,7 +63,7 @@ import f_utils as fu
 # ===============================
 debug_mode = 0
 direc = su.find_root_dir(debug_mode)
-DataVersion = 'Data version 3.1.1'  # will be in the first line of the public files
+DataVersion = 'Data version 3.1.4'  # will be in the first line of the public files
 
 # ============================
 # Directory & File Paths
@@ -193,12 +196,18 @@ for idx, site in enumerate(site_details['Site_Code']):
     
     # STEP 5: Mask out invalid IC data: bad Na conc in blanks
     # find cartridges with bad Na (Na too high in blanks)
-    Ind = np.where(np.isin(BadNa, site))[0]
-    if len(Ind) > 0:
-        for ii in Ind:
-            tCartridge = BadNa[ii]
-            MasterInd = np.where(master_data['CartridgeID'] == tCartridge)[0]
-            master_data.iloc[MasterInd, 'IC_Na_ug_T'] = np.nan  
+    # Keep only bad-Na cartridges that belong to this site
+    bad_Na_this_site = [cart for cart in BadNa if str(cart)[:4] == site]
+
+    # Find rows in this site's master file whose CartridgeID is in that filtered list
+    bad_na_mask = master_data['CartridgeID'].isin(bad_Na_this_site)
+
+    if bad_na_mask.any():
+        master_data.loc[bad_na_mask, 'IC_Na_ug_T'] = np.nan
+
+        for tCartridge in master_data.loc[bad_na_mask, 'CartridgeID'].dropna().unique():
+            MasterInd = master_data.index[master_data['CartridgeID'] == tCartridge].tolist()
+
 
     # STEP 6: Convert mass to concentration (ug/m3)
     master_data = fu.convert_mass_to_concentration(master_data)
@@ -266,7 +275,7 @@ for idx, site in enumerate(site_details['Site_Code']):
                     f"ALLOW_PENDING_MASS=False, so exiting. FilterIDs: {', '.join(flagged_ids)}"
                 )
                 exit(1)
- 
+
 
     # STEP 3: Apply dust attenuation
     # Sub-step 1: calculate dust loading for PM2.5 and PM10
@@ -373,7 +382,8 @@ for idx, site in enumerate(site_details['Site_Code']):
     # =================================== 
     # List of components that will be collected in the RCFM_condense (not all are reported to the public)
     comp_list = ['FilterID','Year','Start_Date', 'End_Date', 'Filter PM2.5 Mass','Sulfate','Nitrate','Ammonium','Sea Salt','Fine Soil',
-                 'Equivalent BC PM2.5','Trace Element Oxides','Organic Carbon','Organic Matter', 'Residual Matter',
+                 'Equivalent BC PM2.5','Trace Element Oxides','Organic Carbon','Organic Matter',
+                 'Residual Matter Only', 'Residual Matter with OC', 'Residual Matter with OM',
                  'vol_growth','Particle Bound Water','Potassium', 'Chlorine','Sodium']
     # List of components in RCFM_condense that we don't report
     DoNotReport_List = ['Chlorine', 'Potassium', 'Sodium', 'vol_growth', 'Particle Bound Water', 'FilterID', 'Year', 'Start_Date', 'End_Date']
@@ -416,8 +426,8 @@ for idx, site in enumerate(site_details['Site_Code']):
             
             if component == 'Filter PM2.5 Mass':
                 if nylon_exist:
-                    rcfm[component] = row['mass_ug'] + row['IC_NO3_ug_N']* water_content['Inorganics'].values[0]
-                    
+                    rcfm[component] = row['mass_ug'] + row['IC_NO3_ug_N'] * water_content['Inorganics'].values[0] #Water has been added back because IC does not measure water
+
                     method_params = PM25_mass_para[
                         (PM25_mass_para['Collection Description'].str.contains('Nylon')) &
                         (PM25_mass_para['Sampling Mode'] == sam_mode )
@@ -476,7 +486,6 @@ for idx, site in enumerate(site_details['Site_Code']):
                         exit()
         
             elif component == 'Ammonium':
-                
                 if nylon_exist:
                     rcfm[component] = row['IC_NH4_ug_T'] + row['IC_NH4_ug_N']*0.29
                     
@@ -484,7 +493,7 @@ for idx, site in enumerate(site_details['Site_Code']):
                         (RCFM_parameters['Parameter']=='Ammonium') & 
                         (RCFM_parameters['Collection Description'].str.contains('Telfon filter plus')) 
                     ].iloc[0]
-                    
+
                 else:  
                     rcfm[component] = row['IC_NH4_ug_T'] 
                     
@@ -504,7 +513,6 @@ for idx, site in enumerate(site_details['Site_Code']):
                         exit()
                 
             elif component == 'Sea Salt':
-                # Sea salt(dry) = (2.54*[Na+] - 0.1[Al]) or (1.65[Cl] - 0.1[Al])
                 
                 # default method:
                 method_params = RCFM_parameters[
@@ -512,18 +520,20 @@ for idx, site in enumerate(site_details['Site_Code']):
                         (RCFM_parameters['Analysis Description'].str.contains('XRF')) 
                     ].iloc[0]
                 
-                if xrf_exist:
-                    rcfm[component] = 2.54 * row['IC_Na_ug_T'] - 0.1 * row['Al_XRF_ng']/1000
+                rcfm[component] = np.nan_to_num(row['IC_Na_ug_T']) + np.nan_to_num(row['IC_Cl_ug_T']) 
+                # Old definition: Sea salt(dry) = (2.54*[Na+] - 0.1[Al]) or (1.65[Cl] - 0.1[Al])
+                # if xrf_exist:
+                #     rcfm[component] = 2.54 * row['IC_Na_ug_T'] - 0.1 * row['Al_XRF_ng']/1000
                     
-                elif icp_exist:
-                    rcfm[component] = 2.54 * row['IC_Na_ug_T'] - 0.1 * row['Al_ICP_ng']/1000
-                    # if use ICP, update method_params
-                    method_params = RCFM_parameters[
-                            (RCFM_parameters['Parameter']=='Sea Salt') & 
-                            (RCFM_parameters['Analysis Description'].str.contains('ICP-MS')) 
-                        ].iloc[0]
-                else:
-                    rcfm[component] = 2.54 * row['IC_Na_ug_T']
+                # elif icp_exist:
+                #     rcfm[component] = 2.54 * row['IC_Na_ug_T'] - 0.1 * row['Al_ICP_ng']/1000
+                #     # if use ICP, update method_params
+                #     method_params = RCFM_parameters[
+                #             (RCFM_parameters['Parameter']=='Sea Salt') & 
+                #             (RCFM_parameters['Analysis Description'].str.contains('ICP-MS')) 
+                #         ].iloc[0]
+                # else:
+                #     rcfm[component] = 2.54 * row['IC_Na_ug_T']
                 
                 if rcfm[component] < -0.3: # nan out if too negative
                     rcfm[component] = np.nan
@@ -545,7 +555,7 @@ for idx, site in enumerate(site_details['Site_Code']):
                 
             elif component == 'Trace Element Oxides':
                 rcfm[component] = fu.get_teo(row.to_frame().T, xrf_exist, icp_exist)
-                
+
                 if xrf_exist:
                     method_params = RCFM_parameters[
                             (RCFM_parameters['Parameter']=='Trace Element Oxides') & 
@@ -596,7 +606,7 @@ for idx, site in enumerate(site_details['Site_Code']):
                         (carbon_para['Sampling Mode'] == sam_mode) 
                     ].iloc[0]
                     
-            elif component == 'Residual Matter':
+            elif component == 'Residual Matter Only':
                 # 1. only proceed if major components available
                 if pd.notna(rcfm['Sulfate']) & pd.notna(rcfm['Nitrate']) & pd.notna(rcfm['Ammonium']) &\
                     pd.notna(rcfm['Fine Soil']): 
@@ -609,39 +619,77 @@ for idx, site in enumerate(site_details['Site_Code']):
                     ss_wet =  np.nan_to_num(rcfm['Sea Salt']) * (1 + water_content['SS'].values)
                     
                     # 3. calc residual
-                    rm = rcfm['Filter PM2.5 Mass'] - inorgic_wet - organic_wet - ss_wet - np.nan_to_num(rcfm['Equivalent BC PM2.5']) -  np.nan_to_num(rcfm['Trace Element Oxides']) - rcfm['Fine Soil']
+                    rm_w_water = rcfm['Filter PM2.5 Mass'] - inorgic_wet - ss_wet - np.nan_to_num(rcfm['Equivalent BC PM2.5']) -  np.nan_to_num(rcfm['Trace Element Oxides']) - rcfm['Fine Soil']
+                    rm_only = rm_w_water / (1 + water_content['RM'].values) # convert to dry residual matter
+                    rcfm[component] = rm_only[0]
                     
-                    rcfm[component] = rm[0]
-                    
-                    method_params = RCFM_parameters[ (RCFM_parameters['Parameter']=='Residual Matter')  ].iloc[0]
-                    
+                    method_params = RCFM_parameters[ (RCFM_parameters['Parameter']=='Residual Matter Only')  ].iloc[0]
+
                     # prepare water for vol_growth
                     inorgic_water = (rcfm['Sulfate'] + rcfm['Nitrate'] + rcfm['Ammonium']+   np.nan_to_num(row['IC_K_ug_T'])) * water_content['Inorganics'].values
                     
-                    organic_water =  np.nan_to_num(rcfm['Organic Carbon']) * water_content['RM'].values
+                    #organic_water =  np.nan_to_num(rcfm['Organic Carbon']) * water_content['RM'].values
                     
                     ss_wet_water =  np.nan_to_num(rcfm['Sea Salt']) * water_content['SS'].values
                     
-                    water_mass = inorgic_water + organic_water + ss_wet_water
+                    #water_mass = inorgic_water + organic_water + ss_wet_water
+                    water_mass = inorgic_water + (rm_w_water - rm_only) + ss_wet_water
                     water_mass = water_mass[0]
-                    
+
                 else:
                     rcfm[component] = np.nan
                     water_mass = np.nan
-                    
+
+            elif component == 'Residual Matter with OC':
+                if pd.notna(rcfm['Sulfate']) & pd.notna(rcfm['Nitrate']) & pd.notna(rcfm['Ammonium']) &\
+                    pd.notna(rcfm['Fine Soil']): 
+                #3.1 calc residual with OM 
+                # This is a dry residual matter that includes OC but excludes water. 
+                    inorgic_dry = rcfm['Sulfate'] + rcfm['Nitrate'] + rcfm['Ammonium']+ np.nan_to_num(row['IC_K_ug_T']) + np.nan_to_num(rcfm['Sea Salt'])
+
+                    rm_w_oc = (rcfm['Filter PM2.5 Mass'] -  water_mass) - np.nan_to_num(rcfm['Organic Carbon']) - inorgic_dry \
+                    - np.nan_to_num(rcfm['Equivalent BC PM2.5']) -  np.nan_to_num(rcfm['Trace Element Oxides']) - rcfm['Fine Soil'] 
+                    rcfm[component] = rm_w_oc
+
+                    method_params = RCFM_parameters[ (RCFM_parameters['Parameter']=='Residual Matter with OC')  ].iloc[0]
+
+                else:
+                    rcfm[component] = np.nan
+
+            elif component == 'Residual Matter with OM':
+                if pd.notna(rcfm['Sulfate']) & pd.notna(rcfm['Nitrate']) & pd.notna(rcfm['Ammonium']) &\
+                    pd.notna(rcfm['Fine Soil']): 
+                #3.2 calc residual with OM 
+                # This is a dry residual matter that includes OC and OM but excludes water. 
+                    rm_w_om = rcfm['Filter PM2.5 Mass'] -  water_mass - np.nan_to_num(rcfm['Organic Matter']) - inorgic_dry \
+                    - np.nan_to_num(rcfm['Equivalent BC PM2.5']) -  np.nan_to_num(rcfm['Trace Element Oxides']) - rcfm['Fine Soil'] 
+                    rcfm[component] = rm_w_om
+
+                    method_params = RCFM_parameters[ (RCFM_parameters['Parameter']=='Residual Matter with OM')  ].iloc[0]
+
+                else:
+                    rcfm[component] = np.nan
+                   
+
+
             elif component == 'Particle Bound Water':
+                if pd.notna(rcfm['Sulfate']) & pd.notna(rcfm['Nitrate']) & pd.notna(rcfm['Ammonium']) &\
+                    pd.notna(rcfm['Fine Soil']): 
                 # similar to wet mass but without adding '1' and without worrying about nan
                 # not reported to the public files
-                inorgic_water = water_content['Inorganics'].values * ( np.nan_to_num(rcfm['Sulfate']) + np.nan_to_num(rcfm['Nitrate']) +\
-                    np.nan_to_num(rcfm['Ammonium']) +  np.nan_to_num(row['IC_K_ug_T'])) 
+                    inorgic_water = water_content['Inorganics'].values * ( np.nan_to_num(rcfm['Sulfate']) + np.nan_to_num(rcfm['Nitrate']) + \
+                    np.nan_to_num(rcfm['Ammonium']) +  np.nan_to_num(row['IC_K_ug_T']) + row['IC_NO3_ug_N'])
                 
-                organic_water = water_content['RM'].values * np.nan_to_num(rcfm['Organic Carbon']) 
+                    organic_water = water_content['RM'].values * np.nan_to_num(rcfm['Residual Matter Only']) 
                 
-                ss_water = water_content['SS'].values * np.nan_to_num(rcfm['Sea Salt']) 
+                    ss_water = water_content['SS'].values * np.nan_to_num(rcfm['Sea Salt']) 
                 
-                # Particle bounded water is the sum of water from above
-                pbw = inorgic_water  + organic_water + ss_water
-                rcfm[component] = pbw[0]
+                    # Particle bounded water is the sum of water from above
+                    pbw = np.nan_to_num(inorgic_water)  + np.nan_to_num(organic_water) + np.nan_to_num(ss_water)
+                    rcfm[component] = pbw[0]
+
+                else:
+                    rcfm[component] = np.nan
                 
             elif component == 'vol_growth':
                 # Species     = [SNA   RM    OC  NaCl Soil BC   TEO  ]
@@ -878,20 +926,26 @@ for idx, site in enumerate(site_details['Site_Code']):
     # FIGURE 4: RCFM Pie chart - all data
     # =================================================================
     # There are several versions of pie charts:
-    # no RM version
-    savedir = f'{direc_output}/RCFM/Pie_spec_plots'
-    fname = f"{tsite_info.Site_Code}_PM25_RCFMavg"
-    fu.rcfm_pie(rcfm_df,fname, savedir, tsite_info.City)
+    # # no RM version
+    # savedir = f'{direc_output}/RCFM/Pie_spec_plots'
+    # fname = f"{tsite_info.Site_Code}_PM25_RCFMavg"
+    # fu.rcfm_pie(rcfm_df,fname, savedir, tsite_info.City)
     
     # with RM version
     savedir = f'{direc_output}/RCFM/Pie_spec_plots_withRM'
     fname = f"{tsite_info.Site_Code}_PM25_RCFMavg"
     fu.rcfm_wRM(rcfm_df,fname,savedir, tsite_info.City)
+
+
+    # OC + RM, no OM version
+    savedir = f'{direc_output}/RCFM/Pie_spec_plots_OC'
+    fname = f"{tsite_info.Site_Code}_PM25_RCFMavg"
+    fu.rcfm_OC_wRM(rcfm_df,fname, savedir, tsite_info.City)
     
     # OM + RM, no OC
-    # savedir = f'{direc_output}/RCFM/Pie_spec_plots_OM'
-    # fname = f"{tsite_info.Site_Code}_PM25_RCFMavg"
-    # fu.rcfm_OM_wRM(rcfm_df,fname,savedir,tsite_info.City)
+    savedir = f'{direc_output}/RCFM/Pie_spec_plots_OM'
+    fname = f"{tsite_info.Site_Code}_PM25_RCFMavg"
+    fu.rcfm_OM_wRM(rcfm_df,fname,savedir,tsite_info.City)
     
     # =================================================================
     # FIGURE 5: RCFM Pie chart - 2020 and forward, with Cl and K
