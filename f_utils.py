@@ -732,20 +732,20 @@ def get_teo(pm25_data, xrf_exist,icp_exist):
         for element, coeff in XRF_COEFFICIENTS.items():
             col_name = f"{element}_XRF_ng"
             if col_name in pm25_data.columns:
-                teo += pm25_data[col_name].fillna(0).values * coeff
-                teo = teo[0]/1000
+                val = float(pm25_data[col_name].fillna(0).iloc[0])
+                teo += val * coeff #ng/m3 * unitless coeff = ng/m3
 
     elif icp_exist:
         for element, coeff in ICP_COEFFICIENTS.items():
             col_name = f"{element}_ICP_ng"
             if col_name in pm25_data.columns:
-                teo += pm25_data[col_name].fillna(0).values * coeff
-                teo = teo[0]/1000
+                val = float(pm25_data[col_name].fillna(0).iloc[0])
+                teo += val * coeff
     else:
         teo = np.nan
     
     
-    return teo
+    return teo / 1000.0 # convert from ng/m3 to ug/m3
 
 
 # ========= FIGURES - PM25 time series =========
@@ -896,7 +896,7 @@ def get_bar_spec():
         'Black Carbon': 'Equivalent BC PM2.5',
         'Water': 'Particle Bound Water',
         'Organic Carbon': 'Organic Carbon',
-        'Residual Matter': 'Residual Matter',
+        'Residual Matter': 'Residual Matter with OC',
     }
 
     colors = np.array([
@@ -1004,7 +1004,8 @@ def rcfm_pie(rcfm_df, figname,savedir, city):
         'BC': 'Equivalent BC PM2.5',
         'TEO': 'Trace Element Oxides',
         'Fine Soil': 'Fine Soil',
-        'Sea Salt': 'Sea Salt',
+        'Na': 'Sodium', 
+        'Cl': 'Chlorine',
         'Nitrate': 'Nitrate',
         'Ammonium': 'Ammonium',
         'Sulfate': 'Sulfate',
@@ -1016,12 +1017,13 @@ def rcfm_pie(rcfm_df, figname,savedir, city):
         [35, 31, 32],     # BC (black)
         [128, 130, 133],  # TEO (grey)
         [252, 238, 30],   # Fine Soil (yellow)
-        [57, 84, 165],    # Sea Salt (blue)
+        [57, 84, 165],   # Na (blue)
+        [56, 170, 165],   # Cl
         [245, 126, 32],   # Nitrate (orange)
         [240, 103, 166],  # Ammonium (pink)
         [237, 48, 41],    # Sulfate (red)
         [109, 207, 246],  # PBW (water/blue)
-        [80, 184, 72],     # OC (green)
+        [80, 184, 72],    # OC (green)
     ]) / 255
      
     make_pie(rcfm_df, spec_mapping, colors, figname, savedir, city)
@@ -1033,26 +1035,62 @@ def rcfm_wRM(rcfm_df, figname, savedir, city):
         'BC': 'Equivalent BC PM2.5',
         'TEO': 'Trace Element Oxides',
         'Fine Soil': 'Fine Soil',
-        'Sea Salt': 'Sea Salt',
+        'Sodium': 'Sodium', 
+        'Chloride': 'Chlorine',
+        'Potassium': 'Potassium',
         'Nitrate': 'Nitrate',
         'Ammonium': 'Ammonium',
         'Sulfate': 'Sulfate',
         'PBW': 'Particle Bound Water',
-        'OC': 'Organic Carbon',
-        'RM': 'Residual Matter',
+        'RM': 'Residual Matter Only',
     }
 
     colors = np.array([
         [35, 31, 32],     # BC (black)
         [128, 130, 133],  # TEO (grey)
         [252, 238, 30],   # Fine Soil (yellow)
-        [57, 84, 165],    # Sea Salt (blue)
+        [57, 84, 165],    # Na
+        [56, 170, 165],   # Cl
+        [180, 132, 212],  # purple K
+        [245, 126, 32],   # Nitrate (orange)
+        [240, 103, 166],  # Ammonium (pink)
+        [237, 48, 41],    # Sulfate (red)
+        [109, 207, 246],  # PBW (water/blue)
+        [80, 184, 72],    # RM (green)
+    ]) / 255
+     
+    make_pie(rcfm_df, spec_mapping, colors, figname, savedir, city)
+
+def rcfm_OC_wRM(rcfm_df, figname, savedir, city):
+    # Define species mapping, colors and order
+    spec_mapping = {
+        'BC': 'Equivalent BC PM2.5',
+        'TEO': 'Trace Element Oxides',
+        'Fine Soil': 'Fine Soil',
+        'Sodium': 'Sodium', 
+        'Chloride': 'Chlorine',
+        'Potassium': 'Potassium',
+        'Nitrate': 'Nitrate',
+        'Ammonium': 'Ammonium',
+        'Sulfate': 'Sulfate',
+        'PBW': 'Particle Bound Water',
+        'OC': 'Organic Carbon',
+        'RM': 'Residual Matter with OC',
+    }
+
+    colors = np.array([
+        [35, 31, 32],     # BC (black)
+        [128, 130, 133],  # TEO (grey)
+        [252, 238, 30],   # Fine Soil (yellow)
+        [57, 84, 165],    # Na
+        [56, 170, 165],   # Cl
+        [180, 132, 212],  # purple K
         [245, 126, 32],   # Nitrate (orange)
         [240, 103, 166],  # Ammonium (pink)
         [237, 48, 41],    # Sulfate (red)
         [109, 207, 246],  # PBW (water/blue)
         [55, 98, 60],     # OC (dark green)
-        [80, 184, 72],    # OM (green)
+        [80, 184, 72],    # RM (green)
     ]) / 255
      
     make_pie(rcfm_df, spec_mapping, colors, figname, savedir, city)
@@ -1064,20 +1102,24 @@ def rcfm_OM_wRM(rcfm_df, figname, savedir, city):
         'BC': 'Equivalent BC PM2.5',
         'TEO': 'Trace Element Oxides',
         'Fine Soil': 'Fine Soil',
-        'Sea Salt': 'Sea Salt',
+        'Sodium': 'Sodium', 
+        'Chloride': 'Chlorine',
+        'Potassium': 'Potassium',
         'Nitrate': 'Nitrate',
         'Ammonium': 'Ammonium',
         'Sulfate': 'Sulfate',
         'PBW': 'Particle Bound Water',
         'OM': 'Organic Matter',
-        'RM': 'Residual Matter',
+        'RM': 'Residual Matter with OM',
     }
 
     colors = np.array([
         [35, 31, 32],     # BC (black)
         [128, 130, 133],  # TEO (grey)
         [252, 238, 30],   # Fine Soil (yellow)
-        [57, 84, 165],    # Sea Salt (blue)
+        [57, 84, 165],    # Na
+        [56, 170, 165],   # Cl
+        [180, 132, 212],  # purple K
         [245, 126, 32],   # Nitrate (orange)
         [240, 103, 166],  # Ammonium (pink)
         [237, 48, 41],    # Sulfate (red)
@@ -1088,7 +1130,7 @@ def rcfm_OM_wRM(rcfm_df, figname, savedir, city):
      
     make_pie(rcfm_df, spec_mapping, colors, figname, savedir, city)
 
-       
+
 def rcfm_with_K_Cl(rcfm_df, figname, savedir, city):
     # Define species mapping, colors and order
     spec_mapping = {
@@ -1111,7 +1153,7 @@ def rcfm_with_K_Cl(rcfm_df, figname, savedir, city):
         [252, 238, 30],   # Fine Soil (yellow)
         [57, 84, 165],    # Sea Salt (blue)
         [56, 170, 165],   # Cl
-        [180, 132, 212],   # purple K
+        [180, 132, 212],  # purple K
         [245, 126, 32],   # Nitrate (orange)
         [240, 103, 166],  # Ammonium (pink)
         [237, 48, 41],    # Sulfate (red)
@@ -1136,16 +1178,16 @@ def rcfm_with_K_Cl_wRM(rcfm_df, figname, savedir, city):
         'Sulfate': 'Sulfate',
         'PBW': 'Particle Bound Water',
         'OC': 'Organic Carbon',
-        'RM': 'Residual Matter',
+        'RM': 'Residual Matter Only',
     }
 
     colors = np.array([
         [35, 31, 32],     # BC (black)
         [128, 130, 133],  # TEO (grey)
         [252, 238, 30],   # Fine Soil (yellow)
-        [57, 84, 165],    # Sea Salt (blue)
+        [57, 84, 165],    # Na (blue)
         [56, 170, 165],   # Cl
-        [180, 132, 212],   # purple K
+        [180, 132, 212],  # purple K
         [245, 126, 32],   # Nitrate (orange)
         [240, 103, 166],  # Ammonium (pink)
         [237, 48, 41],    # Sulfate (red)
@@ -1172,14 +1214,14 @@ def rcfm_OM_with_K_Cl_wRM(rcfm_df, figname, savedir, city):
         'Sulfate': 'Sulfate',
         'PBW': 'Particle Bound Water',
         'OM': 'Organic Matter',
-        'RM': 'Residual Matter',
+        'RM': 'Residual Matter with OM',
     }
 
     colors = np.array([
         [35, 31, 32],     # BC (black)
         [128, 130, 133],  # TEO (grey)
         [252, 238, 30],   # Fine Soil (yellow)
-        [57, 84, 165],    # Sea Salt (blue)
+        [57, 84, 165],    # Na (blue)
         [56, 170, 165],   # Cl
         [180, 132, 212],   # purple K
         [245, 126, 32],   # Nitrate (orange)
