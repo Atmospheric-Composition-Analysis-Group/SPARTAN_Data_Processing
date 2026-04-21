@@ -678,7 +678,7 @@ for idx, site in enumerate(site_details['Site_Code']):
                 # similar to wet mass but without adding '1' and without worrying about nan
                 # not reported to the public files
                     inorgic_water = water_content['Inorganics'].values * ( np.nan_to_num(rcfm['Sulfate']) + np.nan_to_num(rcfm['Nitrate']) + \
-                    np.nan_to_num(rcfm['Ammonium']) +  np.nan_to_num(row['IC_K_ug_T']) + row['IC_NO3_ug_N'])
+                    np.nan_to_num(rcfm['Ammonium']) +  np.nan_to_num(row['IC_K_ug_T']) + np.nan_to_num(row['IC_NO3_ug_N']))
                 
                     organic_water = water_content['RM'].values * np.nan_to_num(rcfm['Residual Matter Only']) 
                 
