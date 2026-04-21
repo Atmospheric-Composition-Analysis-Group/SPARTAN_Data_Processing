@@ -58,28 +58,127 @@ logging.info("C4 started")
 # ============================
 # Optimized Functions
 # ============================
+#For older format files that are missing MassLoading_ug but have Concentration_ug_m3 and Volume_m3, we can backfill MassLoading_ug using the formula:
+def backfill_massloading_from_conc_volume(df_full, df, file_path):
+    """
+    Backfill missing MassLoading_ug in filtered FTIR rows using:
+        MassLoading_ug = Concentration_ug_m3 * Volume_m3
+
+    Also updates the same rows in df_full and saves the corrected full file.
+    """
+
+    required_cols = ['Volume_m3', 'Parameter', 'MassLoading_ug', 'Concentration_ug_m3']
+    missing_cols = [col for col in required_cols if col not in df.columns]
+
+    if missing_cols:
+        msg = (
+            f"{os.path.basename(file_path)}: Missing required column(s): {missing_cols}. "
+            f"This looks like an old or incompatible FTIR file format. Stopping script."
+        )
+        logging.error(msg)
+        raise SystemExit(msg)
+
+    # convert to numeric safely
+    df['MassLoading_ug'] = pd.to_numeric(df['MassLoading_ug'], errors='coerce')
+    df['Concentration_ug_m3'] = pd.to_numeric(df['Concentration_ug_m3'], errors='coerce')
+    df['Volume_m3'] = pd.to_numeric(df['Volume_m3'], errors='coerce')
+
+    missing_before = df['MassLoading_ug'].isna()
+
+    if missing_before.any():
+        missing_params = df.loc[missing_before, 'Parameter'].value_counts().to_dict()
+        logging.warning(
+            f"{os.path.basename(file_path)}: MassLoading_ug is empty for {missing_before.sum()} row(s), "
+            f"Attempting backfill using Concentration_ug_m3 * Volume_m3. "
+            f"Parameter breakdown = {missing_params}"
+        )
+    else:
+        logging.info(
+            f"{os.path.basename(file_path)}: MassLoading_ug already present for all OC/EC/OM rows."
+        )
+
+    fill_mask = (
+        df['MassLoading_ug'].isna() &
+        df['Concentration_ug_m3'].notna() &
+        df['Volume_m3'].notna()
+    )
+
+    if fill_mask.any():
+        df.loc[fill_mask, 'MassLoading_ug'] = (
+            df.loc[fill_mask, 'Concentration_ug_m3'] *
+            df.loc[fill_mask, 'Volume_m3']
+        )
+
+        # update same rows in full dataframe
+        df_full.loc[df.index[fill_mask], 'MassLoading_ug'] = df.loc[fill_mask, 'MassLoading_ug']
+
+        filled_params = df.loc[fill_mask, 'Parameter'].value_counts().to_dict()
+        logging.info(
+            f"{os.path.basename(file_path)}: Backfilled MassLoading_ug for {fill_mask.sum()} row(s); "
+            f"parameter breakdown = {filled_params}"
+        )
+
+        try:
+            df_full.to_csv(file_path, index=False)
+            logging.info(f"{os.path.basename(file_path)}: Saved updated file after filling MassLoading_ug")
+        except Exception as e:
+            msg = (
+                f"{os.path.basename(file_path)}: Backfilled MassLoading_ug in memory, "
+                f"but could not save updated file: {e}. Stopping script."
+            )
+            logging.error(msg)
+            raise SystemExit(msg)
+
+    remaining_mask = df['MassLoading_ug'].isna()
+    if remaining_mask.any():
+        remaining_params = df.loc[remaining_mask, 'Parameter'].value_counts().to_dict()
+        logging.warning(
+            f"{os.path.basename(file_path)}: {remaining_mask.sum()} row(s) still have missing MassLoading_ug; "
+            f"parameter breakdown = {remaining_params}"
+        )
+
+    return df
 
 def process_ftir_file(file_path):
 
     df = pd.read_csv(file_path)
-    df = df[df['Parameter'].isin(['OC_ftir', 'EC_ftir', 'OM'])]
-
     # Standardize column names of MDL_ug_m3 and mass loading
     df.columns = (
-    df.columns
-      .str.strip()
-      .str.replace(r'^MDL$', 'MDL_ug_m3', regex=True)
-      .str.replace(r'^MassLoading$', 'MassLoading_ug', regex=True)
+        df.columns
+          .str.strip()
+          .str.replace(r'^MDL$', 'MDL_ug_m3', regex=True)
+          .str.replace(r'^MassLoading$', 'MassLoading_ug', regex=True)
+          .str.replace(r'^Concentration$', 'Concentration_ug_m3', regex=True)
+          .str.replace(r'^Volume$', 'Volume_m3', regex=True)
     )
 
+    required_cols = ['Site', 'FilterId', 'Volume_m3', 'Parameter', 'MassLoading_ug', 'Concentration_ug_m3', 'MDL_ug_m3']
+    missing_cols = [col for col in required_cols if col not in df.columns]
+
+    if missing_cols:
+        msg = (
+            f"{os.path.basename(file_path)}: Missing required column(s): {missing_cols}. "
+            f"This looks like an old or incompatible FTIR file format. Stopping script."
+        )
+        logging.error(msg)
+        raise SystemExit(msg)
+
+    # Keep full copy so helper can save corrected full file without dropping other rows
+    df_full = df.copy()
+
+    df = df[df['Parameter'].isin(['OC_ftir', 'EC_ftir', 'OM'])].copy()
+
     if df.empty:
-        logging.info(f"No OC or IC data found for {file_path}")
+        logging.info(f"No OC or EC data found for {file_path}")
         return None
 
-    logging.info(f'Processing {file_path}')  
+    logging.info(f'Processing {file_path}')
 
     # Handle unusual MDLs (missing or Inf)
     df['MDL_ug_m3'] = df['MDL_ug_m3'].replace(np.inf, np.nan)
+
+    # Use helper to backfill MassLoading_ug where possible
+    df = backfill_massloading_from_conc_volume(df_full, df, file_path)
 
     # Create complete pivot table structure
     expected_params = ['OC_ftir', 'EC_ftir', 'OM']
@@ -95,25 +194,27 @@ def process_ftir_file(file_path):
         values=['MassLoading_ug', 'MDL_ug_m3'],
         aggfunc='first'
     ).reindex(columns=pivot_cols)  # Ensure all expected columns exist
+
     # Flatten column multi-index
     df_pivot.columns = [f"{meas}_{param}" for meas, param in df_pivot.columns]
     df = df_pivot.reset_index()
+
     # Fill MDL NaNs with column averages
     for param in expected_params:
         mdl_col = f'MDL_ug_m3_{param}'
-        
+
         # Calculate mean ignoring NaNs
         col_mean = df[mdl_col].mean(skipna=True)
-        
+
         # Fill NaNs if we have valid mean, else leave as NaN
         if not np.isnan(col_mean):
             df[mdl_col] = df[mdl_col].fillna(col_mean)
         else:
             logging.warning(f"No valid MDL values found for {param}, keeping NaNs")
-    
+
     # lastly, set filter ID to standard format
     df['FilterId'] = su.filter_id_format(df['FilterId'])
-    
+
     return df
     
 
