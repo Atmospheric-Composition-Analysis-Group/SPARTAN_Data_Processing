@@ -218,7 +218,67 @@ def read_conc_and_signal(file_path, sheet_name):
     
     return conc, area
 
-def calc_conc(calib, calib_low_conc, selec_area, apply_low_conc_curve, cubic, ion=None):
+def get_std1_point(area_table, ion_full):
+    """
+    Find the smallest STD level with a valid non-NaN signal for this ion.
+
+    Example search order:
+        STD 0.1 -> STD 0.25 -> STD 1.0 -> STD 2.0 -> ...
+
+    Returns:
+        std_signal, std_conc
+
+    Raises:
+        ValueError if no usable STD signal is found.
+    """
+
+    if area_table is None or area_table.empty:
+        raise ValueError(f"{ion_full}: area table is empty")
+
+    if 'samplename' not in area_table.columns:
+        raise ValueError(f"{ion_full}: area table missing 'samplename' column")
+
+    if ion_full not in area_table.columns:
+        raise ValueError(f"{ion_full}: column not found in area table")
+
+    std_rows = area_table.copy()
+    std_rows['samplename_str'] = std_rows['samplename'].astype(str).str.strip()
+
+    # keep only rows that begin with STD
+    std_rows = std_rows[std_rows['samplename_str'].str.upper().str.startswith('STD')].copy()
+
+    if std_rows.empty:
+        raise ValueError(f"{ion_full}: no STD rows found in area table")
+
+    # extract numeric value from strings like:
+    # STD 0.1, STD 1, STD 1.0, STD1.25, etc.
+    std_rows['std_conc'] = (
+        std_rows['samplename_str']
+        .str.extract(r'(?i)STD\s*([0-9]*\.?[0-9]+)', expand=False)
+    )
+    std_rows['std_conc'] = pd.to_numeric(std_rows['std_conc'], errors='coerce')
+
+    # drop rows where no numeric STD value could be parsed
+    std_rows = std_rows.dropna(subset=['std_conc']).copy()
+
+    if std_rows.empty:
+        raise ValueError(f"{ion_full}: STD rows found, but no numeric STD values could be parsed")
+
+    # convert signal column to numeric
+    std_rows['std_signal'] = pd.to_numeric(std_rows[ion_full], errors='coerce')
+
+    # sort from smallest STD concentration upward
+    std_rows = std_rows.sort_values('std_conc')
+
+    # choose first STD with valid signal
+    for _, row in std_rows.iterrows():
+        if not pd.isna(row['std_signal']):
+            return row['std_signal'], row['std_conc']
+
+    raise ValueError(f"{ion_full}: all STD signals are NaN")
+
+def calc_conc(calib, calib_low_conc, selec_area, apply_low_conc_curve, cubic, ion=None,
+              std1_signal=None, std1_conc=None):
     """
     Solve for concentration using calibration curve parameters.
 
@@ -233,6 +293,8 @@ def calc_conc(calib, calib_low_conc, selec_area, apply_low_conc_curve, cubic, io
     """
     
     """Solve for concentration using calibration curve parameters"""
+    conc = np.nan
+
     if 'Cubic' in calib['Cal.Type']:  # this is not a robust check since some old files has 'cubic' in 'cal type' but don't provide cubic coeff
         if cubic == 1:
             if not pd.isna(selec_area):
@@ -309,17 +371,59 @@ def calc_conc(calib, calib_low_conc, selec_area, apply_low_conc_curve, cubic, io
             raise ValueError(f"Cubic calibration detected for {ion}, but cubic solving is disabled; cubic flag={cubic}")
             # conc = np.nan
             # conc = -66666
-                     
+    
     elif 'Lin' in calib['Cal.Type']:
-        # Linear equation: area = Offset + Slope * conc
-        conc = (selec_area - calib['Offset']) / calib['Slope']
-        
-        if apply_low_conc_curve == 1:  # can apply low_conc curve for filters with tiny areas
-            if conc < calib_low_conc['conc'].max()*0.85:  # notably lower than the high end of the curve
-                conc = np.interp(selec_area, calib_low_conc['signal'], calib_low_conc['conc'])
 
+        if pd.isna(selec_area):
+            return np.nan
+
+        # Standard linear calibration
+        conc_linear = (selec_area - calib['Offset']) / calib['Slope']
+
+        # Use linear directly if low-conc logic is not applicable
+        if not (
+            apply_low_conc_curve == 1
+            and calib_low_conc is not None
+            and not calib_low_conc.empty
+            and 'signal' in calib_low_conc.columns
+            and 'conc' in calib_low_conc.columns
+        ):
+            return conc_linear
+
+        low_curve = calib_low_conc.copy()
+        low_curve['signal'] = pd.to_numeric(low_curve['signal'], errors='coerce')
+        low_curve['conc'] = pd.to_numeric(low_curve['conc'], errors='coerce')
+        low_curve = low_curve.dropna(subset=['signal', 'conc']).sort_values('signal')
+
+        if low_curve.empty:
+            logging.warning(f"{ion}: low-conc curve empty after cleaning; using linear calibration")
+            return conc_linear
+
+        low_curve_max_signal = low_curve['signal'].max()
+        low_curve_max_conc = low_curve.loc[low_curve['signal'].idxmax(), 'conc']
+
+        # Below first usable STD: use low-curve logic
+        if selec_area < std1_signal:
+
+            # within low-curve range
+            if selec_area <= low_curve_max_signal:
+                return np.interp(selec_area, low_curve['signal'], low_curve['conc'])
+
+            # between low-curve max signal and first usable STD signal
+            if std1_signal == low_curve_max_signal:
+                logging.warning(f"{ion}: STD signal equals low-curve max signal; using linear calibration")
+                return conc_linear
+
+            extrap_slope = (
+                (std1_conc - low_curve_max_conc) /
+                (std1_signal - low_curve_max_signal)
+            )
+            return low_curve_max_conc + extrap_slope * (selec_area - low_curve_max_signal)
+        
+        # At or above first usable STD signal: standard linear calibration
+        return conc_linear
     return conc
- 
+
  
 def get_volume_mapping(elogfname, site):
     excel = pd.ExcelFile(elogfname, engine='openpyxl')
@@ -470,10 +574,60 @@ for file in files:
     
         #### calculate ion concenration ###
         select_area = all_area[ion_full] # select the column for this ion
+
+        try:
+            std1_signal, std1_conc = get_std1_point(all_area, ion_full)
+        except ValueError as e:
+            logging.error(str(e))
+            raise
+
+        logging.info(f"{ion_full}: selected STD {std1_conc} with signal {std1_signal:.6g}")
+
+        low_curve_filters = []
+        extrapolated_filters = []
+
         for idx, area_val in select_area.items():
-            # replace concentration with our calculated values
-            all_conc.loc[idx, ion_full]= calc_conc(calib, calib_low_conc, area_val, apply_low_conc_curve, cubic, ion=ion)
-    
+            sample_name = all_conc.loc[idx, 'samplename']
+
+            if 'Lin' in calib['Cal.Type'] and not pd.isna(area_val):
+                if (
+                    apply_low_conc_curve == 1
+                    and calib_low_conc is not None
+                    and not calib_low_conc.empty
+                    and 'signal' in calib_low_conc.columns
+                    and 'conc' in calib_low_conc.columns
+                ):
+                    low_curve_tmp = calib_low_conc.copy()
+                    low_curve_tmp['signal'] = pd.to_numeric(low_curve_tmp['signal'], errors='coerce')
+                    low_curve_tmp['conc'] = pd.to_numeric(low_curve_tmp['conc'], errors='coerce')
+                    low_curve_tmp = low_curve_tmp.dropna(subset=['signal', 'conc']).sort_values('signal')
+
+                    if not low_curve_tmp.empty:
+                        low_curve_max_signal = low_curve_tmp['signal'].max()
+
+                        if area_val < std1_signal:
+                            if area_val <= low_curve_max_signal:
+                                low_curve_filters.append(str(sample_name))
+                            else:
+                                extrapolated_filters.append(str(sample_name))
+
+            all_conc.loc[idx, ion_full] = calc_conc(
+                calib,
+                calib_low_conc,
+                area_val,
+                apply_low_conc_curve,
+                cubic,
+                ion=ion,
+                std1_signal=std1_signal,
+                std1_conc=std1_conc
+            )
+
+        if low_curve_filters:
+            logging.info(f"{ion_full}: low-conc curve used for filters: {', '.join(low_curve_filters)}")
+
+        if extrapolated_filters:
+            logging.info(f"{ion_full}: extrapolation used between STD and max of low calibration curve for filters: {', '.join(extrapolated_filters)}")
+
         ### QC and Flags ###
         # check correlation of calibration curve, flag if lower than CorrCoeff_threshold
         if calib['Coeff.Det.'] < CorrCoeff_threshold:
