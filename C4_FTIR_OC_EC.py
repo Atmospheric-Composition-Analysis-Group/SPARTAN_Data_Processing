@@ -141,7 +141,11 @@ def backfill_massloading_from_conc_volume(df_full, df, file_path):
 
 def process_ftir_file(file_path):
 
-    df = pd.read_csv(file_path)
+    try:
+        df = pd.read_csv(file_path, encoding='utf-8')
+    except UnicodeDecodeError:
+        logging.warning(f"{os.path.basename(file_path)}: UTF-8 decoding failed, retrying with latin-1")
+        df = pd.read_csv(file_path, encoding='latin-1')
     # Standardize column names of MDL_ug_m3 and mass loading
     df.columns = (
         df.columns
