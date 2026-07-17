@@ -457,7 +457,7 @@ for idx, site in enumerate(site_details['Site_Code']):
             
             elif component == 'Nitrate':
                 if nylon_exist:
-                    rcfm[component] = row['IC_NO3_ug_T'] + row['IC_NO3_ug_N']
+                    rcfm[component] = np.nan_to_num(row['IC_NO3_ug_T']) + np.nan_to_num(row['IC_NO3_ug_N'])
                     
                     method_params = PM25_IC_para[
                         (PM25_IC_para['Parameter'].str.contains('Nitrate', case=False)) & 
@@ -468,7 +468,7 @@ for idx, site in enumerate(site_details['Site_Code']):
                     method_params['Collection Description'] += '; Added to a Teflon filter mass'
                     
                 else:
-                    rcfm[component] = row['IC_NO3_ug_T']   
+                    rcfm[component] = np.nan_to_num(row['IC_NO3_ug_T'])   
                  
                     method_params = PM25_IC_para[
                         (PM25_IC_para['Parameter'].str.contains('Nitrate', case=False)) & 
@@ -487,7 +487,7 @@ for idx, site in enumerate(site_details['Site_Code']):
         
             elif component == 'Ammonium':
                 if nylon_exist:
-                    rcfm[component] = row['IC_NH4_ug_T'] + row['IC_NH4_ug_N']*0.29
+                    rcfm[component] = np.nan_to_num(row['IC_NH4_ug_T']) + np.nan_to_num(row['IC_NH4_ug_N'])*0.29
                     
                     method_params = RCFM_parameters[
                         (RCFM_parameters['Parameter']=='Ammonium') & 
@@ -495,7 +495,7 @@ for idx, site in enumerate(site_details['Site_Code']):
                     ].iloc[0]
 
                 else:  
-                    rcfm[component] = row['IC_NH4_ug_T'] 
+                    rcfm[component] = np.nan_to_num(row['IC_NH4_ug_T'])
                     
                     method_params = PM25_IC_para[
                         (PM25_IC_para['Parameter'].str.contains('Ammonium', case=False)) & 
@@ -711,7 +711,7 @@ for idx, site in enumerate(site_details['Site_Code']):
                 rcfm[component] = row['IC_K_ug_T']
                 
             elif component == 'Chlorine':
-                rcfm[component] = row['IC_Cl_ug_T']
+                rcfm[component] = np.nan_to_num(row['IC_Cl_ug_T'])
                 
             elif component == 'Sodium':
                 rcfm[component] = row['IC_Na_ug_T']

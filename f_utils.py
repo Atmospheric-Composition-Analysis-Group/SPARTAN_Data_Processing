@@ -937,7 +937,13 @@ def make_pie(rcfm_df, spec_mapping, colors, figname, savedir, city):
     spec_order = list(spec_mapping.keys())
     
     # Calculate means
-    means = {spec: rcfm_df[spec_mapping[spec]].mean() for spec in spec_order}
+    # means = {spec: rcfm_df[spec_mapping[spec]].mean() for spec in spec_order} #old
+    required = ['Sulfate', 'Fine Soil', 'Equivalent BC PM2.5', 'Trace Element Oxides']
+    valid = rcfm_df.dropna(subset=required)
+    logging.info(f"Pie averages: using {len(valid)} of {len(rcfm_df)} filters with complete chemistry")
+
+    means = {spec: valid[spec_mapping[spec]].mean() for spec in spec_order}
+
 
     # Handle negative values
     negative_notes = []
@@ -971,7 +977,7 @@ def make_pie(rcfm_df, spec_mapping, colors, figname, savedir, city):
 
     # Add center circle and mass text
     ax.add_artist(plt.Circle((0, 0), 0.25, fc='white'))
-    ax.text(0, 0, f"{rcfm_df['Filter PM2.5 Mass'].mean():.0f}",
+    ax.text(0, 0, f"{valid['Filter PM2.5 Mass'].mean():.0f}",
             ha='center', va='center', fontsize=42, fontweight='bold')
 
     # Add legend on the right
